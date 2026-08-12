@@ -7,6 +7,7 @@ export default async function AdminUsersPage() {
   const session = await getCurrentUser();
   if (!session) redirect("/login");
   if (session.role !== "ADMIN") notFound();
+  if (!session.companyId) notFound();
 
   const users = await prisma.user.findMany({
     where: { companyId: session.companyId },
@@ -17,10 +18,19 @@ export default async function AdminUsersPage() {
       role: true,
       active: true,
       baseSalary: true,
+      overtimeRate: true,
+      shiftId: true,
+      shift: { select: { name: true } },
       createdAt: true,
       _count: { select: { attendances: true } },
     },
     orderBy: { createdAt: "asc" },
+  });
+
+  const shifts = await prisma.shift.findMany({
+    where: { companyId: session.companyId, active: true },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
   });
 
   return (
@@ -31,7 +41,7 @@ export default async function AdminUsersPage() {
           Tambah, aktifkan/nonaktifkan, dan hapus karyawan
         </p>
       </div>
-      <UserManager users={users} />
+      <UserManager users={users} shifts={shifts} />
     </div>
   );
 }

@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { toDateKey, isLate } from "@/lib/date";
+import { toDateKey } from "@/lib/date";
+
+function minutesFromMidnight(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,6 +20,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const action = body.action;
+    const selfieKey = body.selfieKey ? String(body.selfieKey) : null;
 
     const now = new Date();
     const dateKey = toDateKey(now);
@@ -30,23 +36,114 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      const company = session.companyId
-        ? await prisma.company.findUnique({
-            where: { id: session.companyId },
-            select: { checkInTime: true },
+
+      const recordTypeValue =
+        body.recordType === "WFH" || body.recordType === "DINAS"
+          ? body.recordType
+          : "OFFICE";
+
+      // Resolve shift: roster hari ini > shift default user.
+      const roster = await prisma.roster.findUnique({
+        where: { userId_dateKey: { userId: session.sub, dateKey } },
+        include: { shift: true },
+      });
+      const user = await prisma.user.findUnique({
+        where: { id: session.sub },
+        select: { shiftId: true },
+      });
+      const defaultShift = user?.shiftId
+        ? await prisma.shift.findFirst({
+            where: {
+              id: user.shiftId,
+              companyId: session.companyId || undefined,
+            },
           })
         : null;
-      const checkInTime = company?.checkInTime || "08:00";
-      const status = isLate(now, checkInTime) ? "TERLAMBAT" : "HADIR";
+      const shift = roster?.shift || defaultShift;
+
+      const checkInTime = shift?.checkIn || "08:00";
+      const tolerance = shift?.tolerance || 0;
+      const checkInMin = minutesFromMidnight(checkInTime) + tolerance;
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      const lateMinutes = Math.max(0, nowMin - checkInMin);
+      const isLate = lateMinutes > 0
+        ? "TERLAMBAT"
+        : "HADIR";
+
       const record = await prisma.attendance.create({
         data: {
           userId: session.sub,
           dateKey,
           checkIn: now,
-          status,
+          checkInPhoto: selfieKey,
+          status: isLate,
+          recordType: recordTypeValue,
+          shiftId: shift?.id || null,
+          shiftCheckIn: shift?.checkIn || null,
+          shiftCheckOut: shift?.checkOut || null,
+          lateMinutes: isLate ? lateMinutes : 0,
+          note: body.note ? String(body.note).slice(0, 500) : null,
         },
       });
-      return NextResponse.json({ success: true, record, status });
+      return NextResponse.json({ success: true, record, status: isLate });
+    }
+
+    if (action === "break-in") {
+      if (!existing) {
+        return NextResponse.json(
+          { success: false, message: "Anda belum check-in hari ini." },
+          { status: 400 }
+        );
+      }
+      if (existing.checkOut) {
+        return NextResponse.json(
+          { success: false, message: "Absensi sudah selesai hari ini." },
+          { status: 400 }
+        );
+      }
+      if (existing.breakIn) {
+        return NextResponse.json(
+          { success: false, message: "Anda sudah mulai istirahat." },
+          { status: 400 }
+        );
+      }
+      const record = await prisma.attendance.update({
+        where: { id: existing.id },
+        data: { breakIn: now },
+      });
+      return NextResponse.json({ success: true, record });
+    }
+
+    if (action === "break-out") {
+      if (!existing) {
+        return NextResponse.json(
+          { success: false, message: "Anda belum check-in hari ini." },
+          { status: 400 }
+        );
+      }
+      if (existing.checkOut) {
+        return NextResponse.json(
+          { success: false, message: "Absensi sudah selesai hari ini." },
+          { status: 400 }
+        );
+      }
+      if (!existing.breakIn) {
+        return NextResponse.json(
+          { success: false, message: "Anda belum mulai istirahat." },
+          { status: 400 }
+        );
+      }
+      if (existing.breakOut) {
+        return NextResponse.json(
+          { success: false, message: "Istirahat sudah berakhir." },
+          { status: 400 }
+        );
+      }
+      const record = await prisma.attendance.update({
+        where: { id: existing.id },
+        data: { breakOut: now },
+      });
+      return NextResponse.json({ success: true, record });
     }
 
     if (action === "check-out") {
@@ -64,7 +161,7 @@ export async function POST(request: NextRequest) {
       }
       const record = await prisma.attendance.update({
         where: { id: existing.id },
-        data: { checkOut: now },
+        data: { checkOut: now, checkOutPhoto: selfieKey },
       });
       return NextResponse.json({ success: true, record });
     }

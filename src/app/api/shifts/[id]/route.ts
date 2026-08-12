@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { hash } from "bcryptjs";
+
+function parseTime(value: string): string | null {
+  if (!/^\d{1,2}:\d{2}$/.test(value)) return null;
+  const [h, m] = value.split(":").map(Number);
+  if (h > 23 || m > 59) return null;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+async function findShift(id: string, companyId: string) {
+  return prisma.shift.findFirst({ where: { id, companyId } });
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -15,52 +25,56 @@ export async function PATCH(
         { status: 401 }
       );
     }
-
     const { id } = await params;
-    const existing = await prisma.user.findFirst({
-      where: { id, companyId: session.companyId },
-    });
+    const existing = await findShift(id, session.companyId);
     if (!existing) {
       return NextResponse.json(
-        { success: false, message: "Karyawan tidak ditemukan." },
+        { success: false, message: "Shift tidak ditemukan." },
         { status: 404 }
       );
     }
-    const body = await request.json();
 
+    const body = await request.json();
     const data: Record<string, unknown> = {};
+
     if (body.name !== undefined) {
-      const name = String(body.name || "").trim();
+      const name = String(body.name).trim();
       if (!name) {
         return NextResponse.json(
-          { success: false, message: "Nama tidak boleh kosong." },
+          { success: false, message: "Nama shift tidak boleh kosong." },
           { status: 400 }
         );
       }
       data.name = name;
     }
-    if (body.role !== undefined) {
-      data.role = ["ADMIN", "HRD", "KARYAWAN"].includes(body.role)
-        ? body.role
-        : "KARYAWAN";
+    if (body.checkIn !== undefined) {
+      const checkIn = parseTime(String(body.checkIn));
+      if (!checkIn) {
+        return NextResponse.json(
+          { success: false, message: "Format jam masuk tidak valid." },
+          { status: 400 }
+        );
+      }
+      data.checkIn = checkIn;
+    }
+    if (body.checkOut !== undefined) {
+      const checkOut = parseTime(String(body.checkOut));
+      if (!checkOut) {
+        return NextResponse.json(
+          { success: false, message: "Format jam keluar tidak valid." },
+          { status: 400 }
+        );
+      }
+      data.checkOut = checkOut;
+    }
+    if (body.tolerance !== undefined) {
+      data.tolerance = Math.max(
+        0,
+        Math.min(300, Math.round(Number(body.tolerance) || 0))
+      );
     }
     if (body.active !== undefined) {
       data.active = Boolean(body.active);
-    }
-    if (body.baseSalary !== undefined) {
-      data.baseSalary = Math.max(0, Math.round(Number(body.baseSalary) || 0));
-    }
-    if (body.overtimeRate !== undefined) {
-      data.overtimeRate = Math.max(
-        0,
-        Math.round(Number(body.overtimeRate) || 0)
-      );
-    }
-    if (body.shiftId !== undefined) {
-      data.shiftId = body.shiftId ? String(body.shiftId).trim() : null;
-    }
-    if (body.password) {
-      data.password = await hash(String(body.password), 10);
     }
 
     if (Object.keys(data).length === 0) {
@@ -70,13 +84,8 @@ export async function PATCH(
       );
     }
 
-    const user = await prisma.user.update({
-      where: { id },
-      data,
-      select: { id: true, username: true, name: true, role: true, active: true },
-    });
-
-    return NextResponse.json({ success: true, user });
+    const shift = await prisma.shift.update({ where: { id }, data });
+    return NextResponse.json({ success: true, shift });
   } catch {
     return NextResponse.json(
       { success: false, message: "Terjadi kesalahan server." },
@@ -97,26 +106,15 @@ export async function DELETE(
         { status: 401 }
       );
     }
-
     const { id } = await params;
-    if (id === session.sub) {
-      return NextResponse.json(
-        { success: false, message: "Tidak dapat menghapus akun sendiri." },
-        { status: 400 }
-      );
-    }
-
-    const existing = await prisma.user.findFirst({
-      where: { id, companyId: session.companyId },
-    });
+    const existing = await findShift(id, session.companyId);
     if (!existing) {
       return NextResponse.json(
-        { success: false, message: "Karyawan tidak ditemukan." },
+        { success: false, message: "Shift tidak ditemukan." },
         { status: 404 }
       );
     }
-
-    await prisma.user.delete({ where: { id } });
+    await prisma.shift.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json(

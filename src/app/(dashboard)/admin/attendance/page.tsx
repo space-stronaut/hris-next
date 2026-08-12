@@ -90,13 +90,14 @@ export default async function AdminAttendancePage({
                 <th className="px-6 py-3">Check Out</th>
                 <th className="px-6 py-3">Durasi</th>
                 <th className="px-6 py-3">Status</th>
+                <th className="px-6 py-3">Selfie</th>
               </tr>
             </thead>
             <tbody>
               {records.length === 0 && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-6 py-8 text-center text-slate-500"
                   >
                     Tidak ada catatan absensi untuk bulan ini.
@@ -127,6 +128,23 @@ export default async function AdminAttendancePage({
                     >
                       {r.status}
                     </span>
+                  </td>
+                  <td className="px-6 py-3">
+                    {r.checkInPhoto ? (
+                      <a
+                        href={`/api/photo?key=${encodeURIComponent(r.checkInPhoto)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <img
+                          src={`/api/photo?key=${encodeURIComponent(r.checkInPhoto)}`}
+                          alt="selfie"
+                          className="h-10 w-10 rounded-lg border border-slate-200 object-cover hover:opacity-80"
+                        />
+                      </a>
+                    ) : (
+                      <span className="text-xs text-slate-400">-</span>
+                    )}
                   </td>
                 </tr>
               ))}

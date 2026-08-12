@@ -21,6 +21,8 @@ const groups: NavGroup[] = [
     items: [
       { href: "/dashboard/leave", label: "Cuti Saya", icon: "calendar", roles: ["ADMIN", "HRD", "KARYAWAN"] },
       { href: "/dashboard/payroll", label: "Gaji Saya", icon: "card", roles: ["ADMIN", "HRD", "KARYAWAN"] },
+      { href: "/dashboard/overtime", label: "Lembur Saya", icon: "clock", roles: ["ADMIN", "HRD", "KARYAWAN"] },
+      { href: "/dashboard/corrections", label: "Koreksi Absensi", icon: "edit", roles: ["ADMIN", "HRD", "KARYAWAN"] },
     ],
   },
   {
@@ -36,6 +38,8 @@ const groups: NavGroup[] = [
       { href: "/hrd", label: "Dashboard HRD", icon: "chart", roles: ["ADMIN", "HRD"] },
       { href: "/hrd/leaves", label: "Persetujuan Cuti", icon: "check", roles: ["ADMIN", "HRD"] },
       { href: "/hrd/claims", label: "Persetujuan Klaim", icon: "check", roles: ["ADMIN", "HRD"] },
+      { href: "/hrd/overtime", label: "Persetujuan Lembur", icon: "clock", roles: ["ADMIN", "HRD"] },
+      { href: "/hrd/corrections", label: "Koreksi Absensi", icon: "edit", roles: ["ADMIN", "HRD"] },
       { href: "/hrd/payroll", label: "Payroll", icon: "dollar", roles: ["ADMIN", "HRD"] },
       { href: "/hrd/meetings", label: "Manajemen Meeting", icon: "users", roles: ["ADMIN", "HRD"] },
     ],
@@ -45,6 +49,8 @@ const groups: NavGroup[] = [
     items: [
       { href: "/admin", label: "Dashboard Admin", icon: "shield", roles: ["ADMIN"] },
       { href: "/admin/users", label: "Karyawan", icon: "users", roles: ["ADMIN"] },
+      { href: "/admin/shifts", label: "Shift & Jam Kerja", icon: "briefcase", roles: ["ADMIN"] },
+      { href: "/admin/roster", label: "Roster", icon: "calendar", roles: ["ADMIN"] },
       { href: "/admin/attendance", label: "Rekap Absensi", icon: "clock", roles: ["ADMIN"] },
     ],
   },
@@ -125,6 +131,12 @@ const iconPaths: Record<string, React.ReactNode> = {
     <>
       <rect x="2" y="7" width="20" height="14" rx="2" />
       <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+    </>
+  ),
+  edit: (
+    <>
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
     </>
   ),
 };

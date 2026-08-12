@@ -13,11 +13,11 @@ export default async function DashboardPage() {
     where: { userId_dateKey: { userId: session.sub, dateKey } },
   });
 
-  const initialStatus = today
-    ? today.checkOut
-      ? "OUT"
-      : "IN"
-    : "NONE";
+  const shiftName = await (async () => {
+    if (!today?.shiftId) return null;
+    const shift = await prisma.shift.findUnique({ where: { id: today.shiftId } });
+    return shift?.name || null;
+  })();
 
   const history = await prisma.attendance.findMany({
     where: { userId: session.sub },
@@ -34,7 +34,24 @@ export default async function DashboardPage() {
         <p className="text-slate-500 mt-1">{formatDateKey(dateKey)}</p>
       </div>
 
-      <AttendancePanel initialStatus={initialStatus} />
+      <AttendancePanel
+        today={
+          today
+            ? {
+                checkIn: today.checkIn?.toISOString() ?? null,
+                checkOut: today.checkOut?.toISOString() ?? null,
+                breakIn: today.breakIn?.toISOString() ?? null,
+                breakOut: today.breakOut?.toISOString() ?? null,
+                checkInPhoto: today.checkInPhoto,
+                checkOutPhoto: today.checkOutPhoto,
+                recordType: today.recordType,
+                shiftCheckIn: today.shiftCheckIn,
+                shiftCheckOut: today.shiftCheckOut,
+              }
+            : null
+        }
+        shiftName={shiftName}
+      />
 
       <div className="rounded-2xl border border-slate-200 bg-surface shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">

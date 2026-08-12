@@ -14,6 +14,12 @@ enum Role {
   KARYAWAN
 }
 
+enum RecordType {
+  OFFICE
+  WFH
+  DINAS
+}
+
 model Company {
   id          String   @id @default(cuid())
   name        String
@@ -24,7 +30,40 @@ model Company {
   updatedAt   DateTime @updatedAt
   users     User[]
   meetings  Meeting[]
+  shifts    Shift[]
+  rosters   Roster[]
 }
+
+model Shift {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String
+  checkIn   String   @default("08:00")
+  checkOut  String   @default("17:00")
+  tolerance Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users   User[]
+  rosters Roster[]
+}
+
+model Roster {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dateKey   String
+  shiftId   String
+  shift     Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, dateKey])
+}
+
 model User {
   id          String       @id @default(cuid())
   username    String       @unique
@@ -33,34 +72,86 @@ model User {
   role        Role         @default(KARYAWAN)
   companyId   String?
   company     Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  shiftId     String?
+  shift       Shift?       @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   active      Boolean      @default(true)
   baseSalary  Int          @default(0)
+  overtimeRate Int         @default(0)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   attendances Attendance[]
+  rosters     Roster[]
   leaves      Leave[]      @relation("LeaveOwner")
   approvedLeaves Leave[]   @relation("LeaveApprover")
   payrolls    Payroll[]
   claims      Claim[]      @relation("ClaimOwner")
   approvedClaims Claim[]   @relation("ClaimApprover")
+  overtimes   Overtime[]   @relation("OvertimeOwner")
+  approvedOvertimes Overtime[] @relation("OvertimeApprover")
+  corrections AttendanceCorrection[] @relation("CorrectionOwner")
+  approvedCorrections AttendanceCorrection[] @relation("CorrectionApprover")
   createdMeetings Meeting[] @relation("MeetingCreator")
   meetingParticipants MeetingParticipant[]
   notifications Notification[]
 }
 
 model Attendance {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  dateKey   String
-  checkIn   DateTime?
-  checkOut  DateTime?
-  status    String   @default("HADIR")
-  note      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dateKey      String
+  checkIn      DateTime?
+  checkOut     DateTime?
+  breakIn      DateTime?
+  breakOut     DateTime?
+  checkInPhoto String?
+  checkOutPhoto String?
+  status       String     @default("HADIR")
+  recordType   RecordType @default(OFFICE)
+  shiftId      String?
+  shiftCheckIn String?
+  shiftCheckOut String?
+  lateMinutes  Int?
+  note         String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  corrections AttendanceCorrection[]
 
   @@unique([userId, dateKey])
+}
+
+model Overtime {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation("OvertimeOwner", fields: [userId], references: [id], onDelete: Cascade)
+  dateKey        String
+  startTime      String
+  endTime        String
+  durationMinutes Int
+  payAmount     Int         @default(0)
+  reason         String
+  status         String   @default("PENDING")
+  approvedById   String?
+  approvedBy     User?    @relation("OvertimeApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model AttendanceCorrection {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation("CorrectionOwner", fields: [userId], references: [id], onDelete: Cascade)
+  attendanceId     String
+  attendance       Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  requestedCheckIn DateTime?
+  requestedCheckOut DateTime?
+  reason           String
+  status           String   @default("PENDING")
+  approvedById     String?
+  approvedBy       User?    @relation("CorrectionApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model Leave {

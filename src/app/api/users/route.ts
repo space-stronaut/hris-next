@@ -52,6 +52,13 @@ export async function POST(request: NextRequest) {
       ? body.role
       : "KARYAWAN";
     const baseSalary = Math.max(0, Math.round(Number(body.baseSalary) || 0));
+    const overtimeRate = Math.max(
+      0,
+      Math.round(Number(body.overtimeRate) || 0)
+    );
+    const shiftId = body.shiftId
+      ? String(body.shiftId).trim()
+      : null;
 
     if (!username || !password || !name) {
       return NextResponse.json(
@@ -76,6 +83,8 @@ export async function POST(request: NextRequest) {
         name,
         role,
         baseSalary,
+        overtimeRate,
+        shiftId,
         companyId: session.companyId,
       },
     });
