@@ -51,6 +51,7 @@ const groups: NavGroup[] = [
       { href: "/admin/users", label: "Karyawan", icon: "users", roles: ["ADMIN"] },
       { href: "/admin/shifts", label: "Shift & Jam Kerja", icon: "briefcase", roles: ["ADMIN"] },
       { href: "/admin/roster", label: "Roster", icon: "calendar", roles: ["ADMIN"] },
+      { href: "/admin/locations", label: "Geofence Lokasi", icon: "map", roles: ["ADMIN"] },
       { href: "/admin/attendance", label: "Rekap Absensi", icon: "clock", roles: ["ADMIN"] },
     ],
   },
@@ -137,6 +138,12 @@ const iconPaths: Record<string, React.ReactNode> = {
     <>
       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </>
+  ),
+  map: (
+    <>
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z" />
+      <circle cx="12" cy="10" r="3" />
     </>
   ),
 };

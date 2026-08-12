@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export type TodayAttendance = {
@@ -23,23 +23,56 @@ export default function AttendancePanel({
   shiftName?: string | null;
 }) {
   const router = useRouter();
-  const fileRef = useRef<HTMLInputElement>(null);
   const [recordType, setRecordType] = useState<"OFFICE" | "WFH" | "DINAS">(
     today?.recordType || "OFFICE"
   );
-  const [selfiePreview, setSelfiePreview] = useState<string | null>(null);
+  const [selfieDataUrl, setSelfieDataUrl] = useState<string | null>(null);
+  const [gps, setGps] = useState<{
+    status: "idle" | "loading" | "ready" | "error";
+    lat: number | null;
+    lng: number | null;
+    message: string;
+  }>({ status: "idle", lat: null, lng: null, message: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [state, setState] = useState<TodayAttendance | null>(today);
 
-  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setSelfiePreview(String(reader.result));
-    reader.readAsDataURL(file);
-    e.target.value = "";
+  const gpsReady = gps.status === "ready" && gps.lat !== null && gps.lng !== null;
+
+  function acquireGps() {
+    setGps({ status: "loading", lat: null, lng: null, message: "" });
+    if (!navigator.geolocation) {
+      setGps({ status: "error", lat: null, lng: null, message: "Perangkat tidak mendukung GPS." });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) =>
+        setGps({
+          status: "ready",
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          message: "",
+        }),
+      (err) =>
+        setGps({
+          status: "error",
+          lat: null,
+          lng: null,
+          message:
+            err.code === err.PERMISSION_DENIED
+              ? "Izinkan akses lokasi untuk absensi kantor."
+              : "Gagal mendapatkan lokasi GPS.",
+        }),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    );
   }
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      acquireGps();
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
 
   async function doAction(
     action: "check-in" | "check-out" | "break-in" | "break-out"
@@ -47,14 +80,30 @@ export default function AttendancePanel({
     setLoading(true);
     setError("");
     try {
+      const isOffice =
+        action === "check-out"
+          ? state?.recordType === "OFFICE"
+          : action === "check-in" && recordType === "OFFICE";
+
+      if (isOffice && !gpsReady) {
+        setError("Lokasi GPS belum siap. Mohon tunggu / izinkan akses lokasi.");
+        setLoading(false);
+        return;
+      }
+
       let selfieKey: string | null = null;
       const needPhoto = action === "check-in" || action === "check-out";
-      if (needPhoto && selfiePreview) {
+      if (needPhoto && !selfieDataUrl) {
+        setError("Selfie wajib diambil sebelum check-in / check-out.");
+        setLoading(false);
+        return;
+      }
+      if (needPhoto && selfieDataUrl) {
         const up = await fetch("/api/attendance/photo", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            data: selfiePreview,
+            data: selfieDataUrl,
             purpose: action === "check-in" ? "in" : "out",
           }),
         });
@@ -70,7 +119,13 @@ export default function AttendancePanel({
       const res = await fetch("/api/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, recordType, selfieKey }),
+        body: JSON.stringify({
+          action,
+          recordType,
+          selfieKey,
+          lat: gps.lat,
+          lng: gps.lng,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -91,7 +146,7 @@ export default function AttendancePanel({
           shiftCheckIn: data.record?.shiftCheckIn ?? null,
           shiftCheckOut: data.record?.shiftCheckOut ?? null,
         });
-        setSelfiePreview(null);
+        setSelfieDataUrl(null);
       } else if (action === "check-out") {
         setState((s) =>
           s
@@ -102,7 +157,7 @@ export default function AttendancePanel({
               }
             : s
         );
-        setSelfiePreview(null);
+        setSelfieDataUrl(null);
       } else if (action === "break-in") {
         setState((s) => (s ? { ...s, breakIn: new Date().toISOString() } : s));
       } else if (action === "break-out") {
@@ -117,7 +172,9 @@ export default function AttendancePanel({
 
   const done = state?.checkOut;
   const onBreak = !!state?.breakIn && !state?.breakOut;
-  const canCapture = !done && selfiePreview === null;
+  const geoRequired = state
+    ? state.recordType === "OFFICE"
+    : recordType === "OFFICE";
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-surface p-6 shadow-sm">
@@ -163,46 +220,43 @@ export default function AttendancePanel({
               </button>
             ))}
           </div>
-          <SelfieCapture
-            preview={selfiePreview}
-            canCapture={canCapture}
-            onShowPicker={() => fileRef.current?.click()}
-            onClear={() => setSelfiePreview(null)}
+
+          <SelfieSection
+            dataUrl={selfieDataUrl}
+            disabled={loading}
+            onCapture={setSelfieDataUrl}
           />
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            capture="user"
-            className="hidden"
-            onChange={onFileChange}
-          />
+
+          <GeoStatus required={geoRequired} gps={gps} ready={gpsReady} onRetry={acquireGps} />
+
           <button
             onClick={() => doAction("check-in")}
-            disabled={loading}
+            disabled={loading || !selfieDataUrl || (geoRequired && !gpsReady)}
             className="mt-3 w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {loading ? "Memproses..." : "Check In"}
           </button>
+          {!selfieDataUrl && (
+            <p className="mt-2 text-xs text-red-500">
+              Ambil selfie terlebih dahulu untuk check-in.
+            </p>
+          )}
+          {geoRequired && selfieDataUrl && !gpsReady && (
+            <p className="mt-2 text-xs text-red-500">
+              Tunggu lokasi GPS siap untuk check-in kantor.
+            </p>
+          )}
         </div>
       )}
 
       {state && !done && (
         <div className="mt-4 space-y-3">
-          <SelfieCapture
-            preview={selfiePreview}
-            canCapture={canCapture}
-            onShowPicker={() => fileRef.current?.click()}
-            onClear={() => setSelfiePreview(null)}
+          <SelfieSection
+            dataUrl={selfieDataUrl}
+            disabled={loading}
+            onCapture={setSelfieDataUrl}
           />
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            capture="user"
-            className="hidden"
-            onChange={onFileChange}
-          />
+          <GeoStatus required={geoRequired} gps={gps} ready={gpsReady} onRetry={acquireGps} />
           <div className="flex flex-wrap gap-3">
             {!state.breakIn && (
               <button
@@ -224,12 +278,22 @@ export default function AttendancePanel({
             )}
             <button
               onClick={() => doAction("check-out")}
-              disabled={loading}
+              disabled={loading || !selfieDataUrl || (geoRequired && !gpsReady)}
               className="flex-1 rounded-lg bg-[#0f172a] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#1e293b] disabled:opacity-40"
             >
               Check Out
             </button>
           </div>
+          {!selfieDataUrl && (
+            <p className="text-xs text-red-500">
+              Ambil selfie terlebih dahulu untuk check-out.
+            </p>
+          )}
+          {geoRequired && selfieDataUrl && !gpsReady && (
+            <p className="text-xs text-red-500">
+              Tunggu lokasi GPS siap untuk check-out.
+            </p>
+          )}
         </div>
       )}
 
@@ -242,45 +306,196 @@ export default function AttendancePanel({
   );
 }
 
-function SelfieCapture({
-  preview,
-  canCapture,
-  onShowPicker,
-  onClear,
+function GeoStatus({
+  required,
+  gps,
+  ready,
+  onRetry,
 }: {
-  preview: string | null;
-  canCapture: boolean;
-  onShowPicker: () => void;
-  onClear: () => void;
+  required: boolean;
+  gps: { status: string; lat: number | null; lng: number | null; message: string };
+  ready: boolean;
+  onRetry: () => void;
 }) {
+  let label = "Lokasi GPS: menunggu...";
+  let color = "text-slate-500";
+  if (gps.status === "loading") {
+    label = "Lokasi GPS: mengambil...";
+  } else if (ready) {
+    label = `Lokasi GPS: siap (${gps.lat?.toFixed(5)}, ${gps.lng?.toFixed(5)})`;
+    color = "text-green-600";
+  } else if (gps.status === "error") {
+    label = gps.message || "Lokasi GPS: gagal.";
+    color = "text-red-600";
+  }
+
   return (
-    <div className="mt-3 flex items-center gap-3">
-      {preview ? (
-        <>
-          <img
-            src={preview}
-            alt="Selfie preview"
-            className="h-16 w-16 rounded-lg border border-slate-300 object-cover"
-          />
-          <button
-            type="button"
-            onClick={onClear}
-            disabled={!canCapture}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-40"
-          >
-            Ganti Selfie
-          </button>
-          <span className="text-xs text-green-600">Selfie siap</span>
-        </>
-      ) : (
+    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+      <span className={color}>{label}</span>
+      {required && !ready && gps.status !== "loading" && (
         <button
           type="button"
-          onClick={onShowPicker}
-          disabled={!canCapture}
+          onClick={onRetry}
+          className="rounded-md border border-slate-300 px-2 py-0.5 font-medium text-slate-600 hover:bg-slate-100"
+        >
+          Cari Lokasi
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SelfieSection({
+  dataUrl,
+  disabled,
+  onCapture,
+}: {
+  dataUrl: string | null;
+  disabled: boolean;
+  onCapture: (url: string) => void;
+}) {
+  const [showCamera, setShowCamera] = useState(false);
+
+  if (dataUrl) {
+    return (
+      <div className="mt-3 flex items-center gap-3">
+        <img
+          src={dataUrl}
+          alt="selfie"
+          className="h-16 w-16 rounded-lg border border-slate-300 object-cover"
+        />
+        <span className="text-xs text-green-600">Selfie siap</span>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => {
+            onCapture("");
+            setShowCamera(true);
+          }}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-40"
         >
-          Ambil Selfie
+          Ganti Selfie
         </button>
+      </div>
+    );
+  }
+
+  if (!showCamera) {
+    return (
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setShowCamera(true)}
+        className="mt-3 rounded-lg border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-40"
+      >
+        Buka Kamera untuk Selfie
+      </button>
+    );
+  }
+
+  return <CameraCapture onCaptured={onCapture} onCancel={() => setShowCamera(false)} />;
+}
+
+function CameraCapture({
+  onCaptured,
+  onCancel,
+}: {
+  onCaptured: (url: string) => void;
+  onCancel: () => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [camReady, setCamReady] = useState(false);
+  const [error, setError] = useState("");
+
+  async function start() {
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("unsupported");
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => setCamReady(false));
+      }
+    } catch {
+      setCamReady(false);
+      setError(
+        "Kamera tidak dapat diakses. Pastikan izin kamera diberikan dan aplikasi diakses via HTTPS (atau localhost)."
+      );
+    }
+  }
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      start();
+    }, 0);
+    return () => {
+      clearTimeout(t);
+      streamRef.current?.getTracks().forEach((x) => x.stop());
+      streamRef.current = null;
+    };
+  }, []);
+
+  function capture() {
+    const v = videoRef.current;
+    if (!v || !v.videoWidth) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = v.videoWidth;
+    canvas.height = v.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(v, 0, 0);
+    const url = canvas.toDataURL("image/jpeg", 0.65);
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    onCaptured(url);
+  }
+
+  return (
+    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <div className="relative mx-auto w-full max-w-[240px] overflow-hidden rounded-lg bg-black">
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          autoPlay
+          onLoadedData={() => setCamReady(true)}
+          onCanPlay={() => setCamReady(true)}
+          className="aspect-[4/3] w-full"
+        />
+        {!camReady && !error && (
+          <div className="absolute inset-0 flex items-center justify-center text-sm text-white">
+            Memuat kamera...
+          </div>
+        )}
+        {error && (
+          <div className="absolute inset-0 flex items-center justify-center p-4 text-center text-sm text-red-300">
+            {error}
+          </div>
+        )}
+      </div>
+      {camReady && !error && (
+        <div className="mt-2 flex gap-2">
+          <button
+            type="button"
+            onClick={capture}
+            className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            Ambil Foto
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+          >
+            Batal
+          </button>
+        </div>
       )}
     </div>
   );

@@ -32,6 +32,23 @@ model Company {
   meetings  Meeting[]
   shifts    Shift[]
   rosters   Roster[]
+  locations Location[]
+}
+
+model Location {
+  id           String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name         String
+  latitude     Float
+  longitude    Float
+  radiusMeters Int      @default(100)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  checkIns  Attendance[] @relation("CheckInLocation")
+  checkOuts Attendance[] @relation("CheckOutLocation")
 }
 
 model Shift {
@@ -106,6 +123,14 @@ model Attendance {
   breakOut     DateTime?
   checkInPhoto String?
   checkOutPhoto String?
+  checkInLat   Float?
+  checkInLng   Float?
+  checkOutLat  Float?
+  checkOutLng  Float?
+  checkInLocationId  String?
+  checkInLocation  Location?  @relation("CheckInLocation", fields: [checkInLocationId], references: [id], onDelete: SetNull)
+  checkOutLocationId String?
+  checkOutLocation Location? @relation("CheckOutLocation", fields: [checkOutLocationId], references: [id], onDelete: SetNull)
   status       String     @default("HADIR")
   recordType   RecordType @default(OFFICE)
   shiftId      String?

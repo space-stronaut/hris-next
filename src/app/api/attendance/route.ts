@@ -2,10 +2,44 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { toDateKey } from "@/lib/date";
+import { distanceMeters } from "@/lib/geo";
 
 function minutesFromMidnight(time: string): number {
   const [h, m] = time.split(":").map(Number);
   return h * 60 + m;
+}
+
+async function resolveCheckLocation(
+  companyId: string | null,
+  lat: number | null,
+  lng: number | null
+): Promise<{ location: { id: string; name: string; radiusMeters: number }|null; error: string|null }> {
+  if (!companyId || lat === null || lng === null) {
+    return { location: null, error: null };
+  }
+  const locs = await prisma.location.findMany({
+    where: { companyId, active: true },
+  });
+  if (locs.length === 0) return { location: null, error: null };
+
+  let best: (typeof locs)[number] | null = null;
+  let bestDist = Infinity;
+  for (const l of locs) {
+    const d = distanceMeters(lat, lng, l.latitude, l.longitude);
+    if (d < bestDist) {
+      bestDist = d;
+      best = l;
+    }
+  }
+  if (best && bestDist <= best.radiusMeters) {
+    return { location: best, error: null };
+  }
+  return {
+    location: null,
+    error: `Absensi kantor wajib berada di area. Jarak terdekat ${Math.round(
+      bestDist
+    )} m dari "${best?.name || "lokasi"}".`,
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -21,6 +55,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const action = body.action;
     const selfieKey = body.selfieKey ? String(body.selfieKey) : null;
+    const lat = Number.isFinite(Number(body.lat)) ? Number(body.lat) : null;
+    const lng = Number.isFinite(Number(body.lng)) ? Number(body.lng) : null;
 
     const now = new Date();
     const dateKey = toDateKey(now);
@@ -70,6 +106,23 @@ export async function POST(request: NextRequest) {
         ? "TERLAMBAT"
         : "HADIR";
 
+      // Geofence hanya berlaku untuk absensi kantor (OFFICE).
+      let location: { id: string; name: string; radiusMeters: number } | null = null;
+      if (recordTypeValue === "OFFICE") {
+        const resolved = await resolveCheckLocation(
+          session.companyId,
+          lat,
+          lng
+        );
+        if (resolved.error) {
+          return NextResponse.json(
+            { success: false, message: resolved.error },
+            { status: 400 }
+          );
+        }
+        location = resolved.location;
+      }
+
       const record = await prisma.attendance.create({
         data: {
           userId: session.sub,
@@ -82,6 +135,9 @@ export async function POST(request: NextRequest) {
           shiftCheckIn: shift?.checkIn || null,
           shiftCheckOut: shift?.checkOut || null,
           lateMinutes: isLate ? lateMinutes : 0,
+          checkInLat: lat,
+          checkInLng: lng,
+          checkInLocationId: location?.id || null,
           note: body.note ? String(body.note).slice(0, 500) : null,
         },
       });
@@ -159,9 +215,31 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      // Geofence hanya wajib jika tipe absensi hari ini OFFICE.
+      let location: { id: string; name: string; radiusMeters: number } | null = null;
+      if (existing.recordType === "OFFICE") {
+        const resolved = await resolveCheckLocation(
+          session.companyId,
+          lat,
+          lng
+        );
+        if (resolved.error) {
+          return NextResponse.json(
+            { success: false, message: resolved.error },
+            { status: 400 }
+          );
+        }
+        location = resolved.location;
+      }
       const record = await prisma.attendance.update({
         where: { id: existing.id },
-        data: { checkOut: now, checkOutPhoto: selfieKey },
+        data: {
+          checkOut: now,
+          checkOutPhoto: selfieKey,
+          checkOutLat: lat,
+          checkOutLng: lng,
+          checkOutLocationId: location?.id || null,
+        },
       });
       return NextResponse.json({ success: true, record });
     }
