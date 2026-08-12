@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `company` ADD COLUMN `checkInTime` VARCHAR(191) NOT NULL DEFAULT '08:00';

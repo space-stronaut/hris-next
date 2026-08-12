@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  HRD
+  KARYAWAN
+}
+
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  address     String?
+  checkInTime String   @default("08:00")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users     User[]
+  meetings  Meeting[]
+}
+model User {
+  id          String       @id @default(cuid())
+  username    String       @unique
+  password    String
+  name        String
+  role        Role         @default(KARYAWAN)
+  companyId   String?
+  company     Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  active      Boolean      @default(true)
+  baseSalary  Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  attendances Attendance[]
+  leaves      Leave[]      @relation("LeaveOwner")
+  approvedLeaves Leave[]   @relation("LeaveApprover")
+  payrolls    Payroll[]
+  claims      Claim[]      @relation("ClaimOwner")
+  approvedClaims Claim[]   @relation("ClaimApprover")
+  createdMeetings Meeting[] @relation("MeetingCreator")
+  meetingParticipants MeetingParticipant[]
+  notifications Notification[]
+}
+
+model Attendance {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dateKey   String
+  checkIn   DateTime?
+  checkOut  DateTime?
+  status    String   @default("HADIR")
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, dateKey])
+}
+
+model Leave {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation("LeaveOwner", fields: [userId], references: [id], onDelete: Cascade)
+  startDate    String
+  endDate      String
+  type         String
+  reason       String
+  status       String   @default("PENDING")
+  approvedById String?
+  approvedBy   User?    @relation("LeaveApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Payroll {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period     String
+  baseSalary Int
+  allowance  Int      @default(0)
+  bonus      Int      @default(0)
+  deduction  Int      @default(0)
+  netSalary  Int
+  status     String   @default("DRAFT")
+  note       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, period])
+}
+
+model Claim {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation("ClaimOwner", fields: [userId], references: [id], onDelete: Cascade)
+  type         String
+  amount       Int
+  description  String
+  date         String
+  status       String   @default("PENDING")
+  approvedById String?
+  approvedBy   User?    @relation("ClaimApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Meeting {
+  id          String   @id @default(cuid())
+  title       String
+  date        String
+  time        String
+  location    String
+  agenda      String?
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdBy   User?    @relation("MeetingCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  participants  MeetingParticipant[]
+  notifications Notification[]
+}
+
+model MeetingParticipant {
+  id        String   @id @default(cuid())
+  meetingId String
+  userId    String
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([meetingId, userId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  meetingId String?
+  meeting   Meeting? @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}

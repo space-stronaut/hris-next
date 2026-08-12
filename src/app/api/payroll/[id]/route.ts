@@ -1,0 +1,69 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getCurrentUser();
+    if (
+      !session ||
+      !session.companyId ||
+      (session.role !== "HRD" && session.role !== "ADMIN")
+    ) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const { id } = await params;
+    const body = await request.json();
+
+    const data: Record<string, unknown> = {};
+    if (body.status !== undefined) {
+      const status = body.status === "PAID" ? "PAID" : "DRAFT";
+      data.status = status;
+    }
+    if (body.allowance !== undefined)
+      data.allowance = Math.max(0, Math.round(Number(body.allowance) || 0));
+    if (body.bonus !== undefined)
+      data.bonus = Math.max(0, Math.round(Number(body.bonus) || 0));
+    if (body.deduction !== undefined)
+      data.deduction = Math.max(0, Math.round(Number(body.deduction) || 0));
+    if (body.baseSalary !== undefined)
+      data.baseSalary = Math.max(0, Math.round(Number(body.baseSalary) || 0));
+    if (body.note !== undefined) data.note = String(body.note || "").trim() || null;
+
+    const payroll = await prisma.payroll.findFirst({
+      where: { id, user: { companyId: session.companyId } },
+    });
+    if (!payroll) {
+      return NextResponse.json(
+        { success: false, message: "Data payroll tidak ditemukan." },
+        { status: 404 }
+      );
+    }
+
+    const baseSalary = (data.baseSalary as number) ?? payroll.baseSalary;
+    const allowance = (data.allowance as number) ?? payroll.allowance;
+    const bonus = (data.bonus as number) ?? payroll.bonus;
+    const deduction = (data.deduction as number) ?? payroll.deduction;
+    data.netSalary = baseSalary + allowance + bonus - deduction;
+
+    const updated = await prisma.payroll.update({
+      where: { id },
+      data,
+      include: { user: { select: { name: true, username: true } } },
+    });
+
+    return NextResponse.json({ success: true, payroll: updated });
+  } catch {
+    return NextResponse.json(
+      { success: false, message: "Terjadi kesalahan server." },
+      { status: 500 }
+    );
+  }
+}
