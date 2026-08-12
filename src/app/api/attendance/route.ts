@@ -11,16 +11,29 @@ function minutesFromMidnight(time: string): number {
 
 async function resolveCheckLocation(
   companyId: string | null,
+  recordType: string,
   lat: number | null,
   lng: number | null
 ): Promise<{ location: { id: string; name: string; radiusMeters: number }|null; error: string|null }> {
-  if (!companyId || lat === null || lng === null) {
+  // Geofence hanya berlaku untuk absensi kantor (OFFICE).
+  if (recordType !== "OFFICE") {
+    return { location: null, error: null };
+  }
+  if (!companyId) {
     return { location: null, error: null };
   }
   const locs = await prisma.location.findMany({
     where: { companyId, active: true },
   });
+  // Jika belum ada lokasi terdaftar, geofence dilonggarkan.
   if (locs.length === 0) return { location: null, error: null };
+
+  if (lat === null || lng === null) {
+    return {
+      location: null,
+      error: "Lokasi GPS wajib dikirim untuk absensi kantor.",
+    };
+  }
 
   let best: (typeof locs)[number] | null = null;
   let bestDist = Infinity;
@@ -72,6 +85,12 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      if (!selfieKey) {
+        return NextResponse.json(
+          { success: false, message: "Selfie wajib dilampirkan saat check-in." },
+          { status: 400 }
+        );
+      }
 
       const recordTypeValue =
         body.recordType === "WFH" || body.recordType === "DINAS"
@@ -108,20 +127,19 @@ export async function POST(request: NextRequest) {
 
       // Geofence hanya berlaku untuk absensi kantor (OFFICE).
       let location: { id: string; name: string; radiusMeters: number } | null = null;
-      if (recordTypeValue === "OFFICE") {
-        const resolved = await resolveCheckLocation(
-          session.companyId,
-          lat,
-          lng
+      const resolved = await resolveCheckLocation(
+        session.companyId,
+        recordTypeValue,
+        lat,
+        lng
+      );
+      if (resolved.error) {
+        return NextResponse.json(
+          { success: false, message: resolved.error },
+          { status: 400 }
         );
-        if (resolved.error) {
-          return NextResponse.json(
-            { success: false, message: resolved.error },
-            { status: 400 }
-          );
-        }
-        location = resolved.location;
       }
+      location = resolved.location;
 
       const record = await prisma.attendance.create({
         data: {
@@ -215,22 +233,27 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      if (!selfieKey) {
+        return NextResponse.json(
+          { success: false, message: "Selfie wajib dilampirkan saat check-out." },
+          { status: 400 }
+        );
+      }
       // Geofence hanya wajib jika tipe absensi hari ini OFFICE.
       let location: { id: string; name: string; radiusMeters: number } | null = null;
-      if (existing.recordType === "OFFICE") {
-        const resolved = await resolveCheckLocation(
-          session.companyId,
-          lat,
-          lng
+      const resolved = await resolveCheckLocation(
+        session.companyId,
+        existing.recordType,
+        lat,
+        lng
+      );
+      if (resolved.error) {
+        return NextResponse.json(
+          { success: false, message: resolved.error },
+          { status: 400 }
         );
-        if (resolved.error) {
-          return NextResponse.json(
-            { success: false, message: resolved.error },
-            { status: 400 }
-          );
-        }
-        location = resolved.location;
       }
+      location = resolved.location;
       const record = await prisma.attendance.update({
         where: { id: existing.id },
         data: {

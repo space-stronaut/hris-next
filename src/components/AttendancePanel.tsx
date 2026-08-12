@@ -330,19 +330,41 @@ function GeoStatus({
   }
 
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-      <span className={color}>{label}</span>
-      {required && !ready && gps.status !== "loading" && (
-        <button
-          type="button"
-          onClick={onRetry}
-          className="rounded-md border border-slate-300 px-2 py-0.5 font-medium text-slate-600 hover:bg-slate-100"
-        >
-          Cari Lokasi
-        </button>
+    <div className="mt-3">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className={color}>{label}</span>
+        {required && !ready && gps.status !== "loading" && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="rounded-md border border-slate-300 px-2 py-0.5 font-medium text-slate-600 hover:bg-slate-100"
+          >
+            Cari Lokasi
+          </button>
+        )}
+      </div>
+
+      {ready && gps.lat !== null && gps.lng !== null && (
+        <div className="mt-2 overflow-hidden rounded-lg border border-slate-200">
+          <iframe
+            title="Peta lokasi GPS absensi"
+            className="h-44 w-full"
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            src={osmEmbedUrl(gps.lat, gps.lng)}
+          />
+        </div>
       )}
     </div>
   );
+}
+
+function osmEmbedUrl(lat: number, lng: number): string {
+  const d = 0.005;
+  const bbox = `${lng - d},${lat - d},${lng + d},${lat + d}`;
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(
+    bbox
+  )}&layer=mapnik&marker=${lat},${lng}`;
 }
 
 function SelfieSection({
