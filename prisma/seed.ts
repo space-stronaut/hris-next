@@ -1,10 +1,10 @@
 import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
-import { PrismaMariaDb } from "@prisma/adapter-mariadb";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { hash } from "bcryptjs";
 import { workingDaysInMonth } from "../src/lib/date";
 
-const adapter = new PrismaMariaDb(process.env.DATABASE_URL as string);
+const adapter = new PrismaPg(process.env.DATABASE_URL as string);
 const prisma = new PrismaClient({ adapter });
 
 function toKey(d: Date): string {
