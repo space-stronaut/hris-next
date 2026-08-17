@@ -114,7 +114,7 @@ async function seedCompany(
   });
 
   // ============ PENGGUNA ============
-  const admin = await prisma.user.create({
+  await prisma.user.create({
     data: {
       username: `admin_${company.code}`,
       password: adminPassword,
@@ -282,7 +282,7 @@ async function seedCompany(
   await prisma.attendance.createMany({ data: attendanceData });
 
   const byName = (name: string) =>
-    employees.find((e) => e.user.name === name)?.user!;
+    employees.find((e) => e.user.name === name)?.user;
   const budi = byName("Budi Santoso");
   const sari = byName("Sari Dewi");
   const dewi = byName("Dewi Lestari");
@@ -359,21 +359,23 @@ async function seedCompany(
   });
 
   // ============ KOREKSI ABSENSI ============
-  const attendanceToCorrect = await prisma.attendance.findFirst({
-    where: { userId: budi.id, status: "TERLAMBAT", dateKey: { not: todayKey } },
-    orderBy: { dateKey: "asc" },
-  });
-  if (attendanceToCorrect) {
-    await prisma.attendanceCorrection.create({
-      data: {
-        userId: budi.id,
-        attendanceId: attendanceToCorrect.id,
-        requestedCheckIn: new Date(`${attendanceToCorrect.dateKey}T07:59:00`),
-        requestedCheckOut: attendanceToCorrect.checkOut,
-        reason: "Keterlambatan karena kendala transportasi (macet).",
-        status: "PENDING",
-      },
+  if (budi) {
+    const attendanceToCorrect = await prisma.attendance.findFirst({
+      where: { userId: budi.id, status: "TERLAMBAT", dateKey: { not: todayKey } },
+      orderBy: { dateKey: "asc" },
     });
+    if (attendanceToCorrect) {
+      await prisma.attendanceCorrection.create({
+        data: {
+          userId: budi.id,
+          attendanceId: attendanceToCorrect.id,
+          requestedCheckIn: new Date(`${attendanceToCorrect.dateKey}T07:59:00`),
+          requestedCheckOut: attendanceToCorrect.checkOut,
+          reason: "Keterlambatan karena kendala transportasi (macet).",
+          status: "PENDING",
+        },
+      });
+    }
   }
 
   // ============ MEETING ============

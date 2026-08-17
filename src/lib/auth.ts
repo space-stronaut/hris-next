@@ -1,6 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies, headers } from "next/headers";
 import { cache } from "react";
+import { prisma } from "@/lib/prisma";
 
 const secret = new TextEncoder().encode(process.env.JWT_SECRET || "dev-secret");
 
@@ -62,5 +63,24 @@ export async function getSession() {
 }
 
 export const getCurrentUser = cache(async () => {
-  return await getSession();
+  const session = await getSession();
+  if (!session) return null;
+
+  // Pastikan user masih ada di database. Jika sudah dihapus (mis. karena seed
+  // ulang membuat ulang user dengan id baru), sesi dianggap tidak valid agar
+  // operasi create tidak memakai userId yang sudah tidak ada (error FK).
+  const user = await prisma.user.findUnique({
+    where: { id: session.sub },
+    select: { id: true, username: true, name: true, role: true, companyId: true },
+  });
+  if (!user) return null;
+
+  return {
+    sub: user.id,
+    username: user.username,
+    name: user.name,
+    role: user.role,
+    companyId: user.companyId,
+    companyName: session.companyName,
+  };
 });
