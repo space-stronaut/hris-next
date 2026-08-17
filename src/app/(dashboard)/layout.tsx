@@ -23,7 +23,11 @@ export default async function DashboardLayout({
       <MobileNav {...navProps} />
       <div className="flex flex-1">
         <Sidebar {...navProps} />
-        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main className="min-w-0 flex-1">
+          <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+            {children}
+          </div>
+        </main>
       </div>
     </div>
   );
