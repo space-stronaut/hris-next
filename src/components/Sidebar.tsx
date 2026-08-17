@@ -163,27 +163,47 @@ function SidebarIcon({ name }: { name: string }) {
   return <svg {...baseStroke}>{iconPaths[name]}</svg>;
 }
 
-export default function Sidebar({
-  name,
-  role,
-  companyName,
-}: {
+type CommonProps = {
   name: string;
   role: string;
   companyName?: string | null;
-}) {
+};
+
+function useDashboardState({ role }: CommonProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
-    if (typeof document === "undefined") return false;
-    return document.documentElement.classList.contains("sidebar-collapsed");
-  });
   const [dark, setDark] = useState<boolean>(() => {
     if (typeof document === "undefined") return false;
     return document.documentElement.classList.contains("dark");
   });
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    if (typeof document === "undefined") return false;
+    return document.documentElement.classList.contains("sidebar-collapsed");
+  });
+
+  const visibleGroups = groups
+    .map((g) => ({
+      title: g.title,
+      items: g.items.filter((i) => i.roles.includes(role)),
+    }))
+    .filter((g) => g.items.length > 0);
+
+  const activeHref =
+    visibleGroups
+      .flatMap((g) => g.items)
+      .filter(
+        (i) => pathname === i.href || pathname.startsWith(i.href + "/")
+      )
+      .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+
+  const roleLabel =
+    role === "SUPER_ADMIN"
+      ? "Super Admin"
+      : role === "ADMIN"
+      ? "Admin"
+      : role === "HRD"
+      ? "HRD"
+      : "Karyawan";
 
   function toggleTheme() {
     const next = !dark;
@@ -203,24 +223,7 @@ export default function Sidebar({
     } catch {}
   }
 
-  const visibleGroups = groups
-    .map((g) => ({
-      title: g.title,
-      items: g.items.filter((i) => i.roles.includes(role)),
-    }))
-    .filter((g) => g.items.length > 0);
-
-  const roleLabel =
-    role === "SUPER_ADMIN"
-      ? "Super Admin"
-      : role === "ADMIN"
-      ? "Admin"
-      : role === "HRD"
-      ? "HRD"
-      : "Karyawan";
-
   async function logout() {
-    setLoading(true);
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } finally {
@@ -229,15 +232,30 @@ export default function Sidebar({
     }
   }
 
-  const activeHref =
-    visibleGroups
-      .flatMap((g) => g.items)
-      .filter(
-        (i) => pathname === i.href || pathname.startsWith(i.href + "/")
-      )
-      .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+  return {
+    dark,
+    collapsed,
+    visibleGroups,
+    activeHref,
+    roleLabel,
+    toggleTheme,
+    toggleCollapsed,
+    logout,
+  };
+}
 
-  const navContent = (
+function NavList({
+  visibleGroups,
+  activeHref,
+  collapsed,
+  onNavigate,
+}: {
+  visibleGroups: NavGroup[];
+  activeHref?: string;
+  collapsed: boolean;
+  onNavigate: () => void;
+}) {
+  return (
     <nav className="flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-6">
       {visibleGroups.map((group) => (
         <div key={group.title}>
@@ -253,7 +271,7 @@ export default function Sidebar({
                 <Link
                   key={item.href}
                   href={item.href}
-                  onClick={() => setOpen(false)}
+                  onClick={onNavigate}
                   title={collapsed ? item.label : undefined}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
                     collapsed ? "justify-center" : ""
@@ -275,12 +293,32 @@ export default function Sidebar({
       ))}
     </nav>
   );
+}
 
-  const userFooter = (
+function UserFooter({
+  name,
+  roleLabel,
+  companyName,
+  collapsed,
+  dark,
+  onToggleTheme,
+  onLogout,
+  loading,
+}: {
+  name: string;
+  roleLabel: string;
+  companyName?: string | null;
+  collapsed: boolean;
+  dark: boolean;
+  onToggleTheme: () => void;
+  onLogout: () => void;
+  loading: boolean;
+}) {
+  return (
     <div className="border-t border-slate-200 p-3">
       {!collapsed ? (
         <button
-          onClick={toggleTheme}
+          onClick={onToggleTheme}
           className="mb-3 flex w-full items-center justify-between rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100"
         >
           <span>{dark ? "Mode Gelap" : "Mode Terang"}</span>
@@ -299,7 +337,7 @@ export default function Sidebar({
         </button>
       ) : (
         <button
-          onClick={toggleTheme}
+          onClick={onToggleTheme}
           title="Ganti tema"
           className="mb-3 flex w-full items-center justify-center rounded-lg border border-slate-300 py-2 text-slate-600 transition hover:bg-slate-100"
         >
@@ -316,59 +354,46 @@ export default function Sidebar({
         </button>
       )}
 
-      {collapsed ? (
-        <div className="flex flex-col items-center gap-3">
-          <div
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700"
-            title={`${name} · ${roleLabel}`}
-          >
-            {name.charAt(0).toUpperCase()}
-          </div>
-          <button
-            onClick={logout}
-            disabled={loading}
-            title="Keluar"
-            className="rounded-lg border border-slate-300 p-2 text-slate-600 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-60"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-          </button>
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700">
+          {name.charAt(0).toUpperCase()}
         </div>
-      ) : (
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700">
-            {name.charAt(0).toUpperCase()}
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-medium text-slate-900">
+            {name}
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium text-slate-900">
-              {name}
-            </div>
-            <div className="truncate text-xs text-slate-500">
-              {companyName ? `${companyName} · ${roleLabel}` : roleLabel}
-            </div>
+          <div className="truncate text-xs text-slate-500">
+            {companyName ? `${companyName} · ${roleLabel}` : roleLabel}
           </div>
-          <button
-            onClick={logout}
-            disabled={loading}
-            title="Keluar"
-            className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100 disabled:opacity-60"
-          >
-            {loading ? "..." : "Keluar"}
-          </button>
         </div>
-      )}
+        <button
+          onClick={onLogout}
+          disabled={loading}
+          title="Keluar"
+          className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100 disabled:opacity-60"
+        >
+          {loading ? "..." : "Keluar"}
+        </button>
+      </div>
     </div>
   );
+}
+
+function MobileNav(props: CommonProps) {
+  const s = useDashboardState(props);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  function handleLogout() {
+    setLoading(true);
+    s.logout();
+  }
 
   return (
-    <>
-      {/* Mobile top bar */}
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200 bg-surface px-4 lg:hidden">
+    <div className="lg:hidden">
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200 bg-surface px-4">
         <button
-          onClick={() => setOpen(true)}
+          onClick={() => setOpen((o) => !o)}
           className="rounded-lg border border-slate-300 p-2 text-slate-600 hover:bg-slate-100"
           aria-label="Buka menu"
         >
@@ -384,84 +409,122 @@ export default function Sidebar({
           </span>
           <span className="font-semibold text-slate-900">HRIS Ultimate</span>
         </span>
-        <NotificationBell />
+        <span className="ml-auto">
+          <NotificationBell />
+        </span>
       </header>
 
-      {/* Desktop sidebar */}
-      <aside
-        className={`hidden shrink-0 flex-col border-r border-slate-200 bg-surface transition-all duration-300 lg:flex ${
-          collapsed ? "w-[68px]" : "w-64"
+      {open && (
+        <div className="border-b border-slate-200 bg-surface">
+          <div className="max-h-[calc(100vh-3.5rem)] overflow-y-auto">
+            <NavList
+              visibleGroups={s.visibleGroups}
+              activeHref={s.activeHref}
+              collapsed={false}
+              onNavigate={() => setOpen(false)}
+            />
+          </div>
+          <UserFooter
+            name={props.name}
+            roleLabel={s.roleLabel}
+            companyName={props.companyName}
+            collapsed={false}
+            dark={s.dark}
+            onToggleTheme={s.toggleTheme}
+            onLogout={handleLogout}
+            loading={loading}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function Sidebar(props: CommonProps) {
+  const s = useDashboardState(props);
+  const [loading, setLoading] = useState(false);
+
+  function handleLogout() {
+    setLoading(true);
+    s.logout();
+  }
+
+  return (
+    <aside
+      className={`hidden shrink-0 flex-col border-r border-slate-200 bg-surface transition-all duration-300 lg:flex ${
+        s.collapsed ? "w-[68px]" : "w-64"
+      }`}
+    >
+      <div
+        className={`flex h-14 items-center border-b border-slate-200 ${
+          s.collapsed ? "justify-center px-2" : "gap-2 px-5"
         }`}
       >
-        <div
-          className={`flex h-14 items-center border-b border-slate-200 ${
-            collapsed ? "justify-center px-2" : "gap-2 px-5"
-          }`}
-        >
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white">
-            A
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white">
+          A
+        </span>
+        {!s.collapsed && (
+          <span className="truncate text-lg font-semibold text-slate-900">
+            HRIS Ultimate
           </span>
-          {!collapsed && (
-            <span className="truncate text-lg font-semibold text-slate-900">
-              HRIS Ultimate
-            </span>
-          )}
-        </div>
-        <div
-          className={`flex items-center border-b border-slate-200 ${
-            collapsed
-              ? "flex-col gap-1 py-2"
-              : "h-12 justify-center px-3"
-          }`}
-        >
-          <NotificationBell />
-          {collapsed ? (
+        )}
+      </div>
+      <div
+        className={`flex items-center border-b border-slate-200 ${
+          s.collapsed
+            ? "flex-col gap-1 py-2"
+            : "h-12 justify-center px-3"
+        }`}
+      >
+        <NotificationBell />
+        {s.collapsed ? (
+          <button
+            onClick={s.toggleCollapsed}
+            title="Perbesar sidebar"
+            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="21" y1="12" x2="11" y2="12" />
+              <polyline points="15 8 19 12 15 16" />
+              <line x1="3" y1="4" x2="9" y2="4" />
+              <line x1="3" y1="20" x2="9" y2="20" />
+            </svg>
+          </button>
+        ) : (
+          <div className="ml-auto">
             <button
-              onClick={toggleCollapsed}
-              title="Perbesar sidebar"
+              onClick={s.toggleCollapsed}
+              title="Perkecil sidebar"
               className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="21" y1="12" x2="11" y2="12" />
-                <polyline points="15 8 19 12 15 16" />
-                <line x1="3" y1="4" x2="9" y2="4" />
-                <line x1="3" y1="20" x2="9" y2="20" />
+                <line x1="3" y1="12" x2="13" y2="12" />
+                <polyline points="9 8 5 12 9 16" />
+                <line x1="15" y1="4" x2="21" y2="4" />
+                <line x1="15" y1="20" x2="21" y2="20" />
               </svg>
             </button>
-          ) : (
-            <div className="ml-auto">
-              <button
-                onClick={toggleCollapsed}
-                title="Perkecil sidebar"
-                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="3" y1="12" x2="13" y2="12" />
-                  <polyline points="9 8 5 12 9 16" />
-                  <line x1="15" y1="4" x2="21" y2="4" />
-                  <line x1="15" y1="20" x2="21" y2="20" />
-                </svg>
-              </button>
-            </div>
-          )}
-        </div>
-        {navContent}
-        {userFooter}
-      </aside>
-
-      {/* Mobile dropdown menu (dari atas, di bawah top bar) */}
-      {open && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setOpen(false)}
-          />
-          <div className="absolute inset-x-0 top-14 flex max-h-[calc(100vh-3.5rem)] flex-col overflow-y-auto border-b border-slate-200 bg-surface shadow-xl">
-            {navContent}
-            {userFooter}
           </div>
-        </div>
-      )}
-    </>
+        )}
+      </div>
+      <NavList
+        visibleGroups={s.visibleGroups}
+        activeHref={s.activeHref}
+        collapsed={s.collapsed}
+        onNavigate={() => {}}
+      />
+      <UserFooter
+        name={props.name}
+        roleLabel={s.roleLabel}
+        companyName={props.companyName}
+        collapsed={s.collapsed}
+        dark={s.dark}
+        onToggleTheme={s.toggleTheme}
+        onLogout={handleLogout}
+        loading={loading}
+      />
+    </aside>
   );
 }
+
+export { MobileNav };
