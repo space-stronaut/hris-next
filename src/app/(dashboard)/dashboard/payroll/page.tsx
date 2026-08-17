@@ -43,6 +43,7 @@ export default async function MyPayrollPage() {
                 <th className="px-6 py-3">Gaji Pokok</th>
                 <th className="px-6 py-3">Tunjangan</th>
                 <th className="px-6 py-3">Bonus</th>
+                <th className="px-6 py-3">PPh 21 (TER)</th>
                 <th className="px-6 py-3">Potongan</th>
                 <th className="px-6 py-3">Gaji Bersih</th>
                 <th className="px-6 py-3">Status</th>
@@ -52,7 +53,7 @@ export default async function MyPayrollPage() {
               {payrolls.length === 0 && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-6 py-8 text-center text-slate-500"
                   >
                     Belum ada data gaji.
@@ -67,6 +68,9 @@ export default async function MyPayrollPage() {
                   <td className="px-6 py-3">{formatRupiah(p.baseSalary)}</td>
                   <td className="px-6 py-3">{formatRupiah(p.allowance)}</td>
                   <td className="px-6 py-3">{formatRupiah(p.bonus)}</td>
+                  <td className="px-6 py-3 text-orange-600">
+                    -{formatRupiah(p.pph21)}
+                  </td>
                   <td className="px-6 py-3 text-red-600">
                     -{formatRupiah(p.deduction)}
                   </td>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { workingDaysInMonth } from "@/lib/date";
+import { calculatePph21 } from "@/lib/tax";
 
 export async function GET(request: NextRequest) {
   try {
@@ -88,7 +89,9 @@ export async function POST(request: NextRequest) {
     const alphaDays = Math.max(0, workingDays - workDays);
     const dailyRate = workingDays > 0 ? Math.round(baseSalary / workingDays) : 0;
     const deduction = alphaDays * dailyRate;
-    const netSalary = baseSalary + allowance + bonus - deduction;
+    const gross = baseSalary + allowance + bonus;
+    const pph21 = calculatePph21(user.maritalStatus, user.dependents, gross);
+    const netSalary = gross - pph21 - deduction;
 
     const payroll = await prisma.payroll.upsert({
       where: { userId_period: { userId, period } },
@@ -97,6 +100,7 @@ export async function POST(request: NextRequest) {
         allowance,
         bonus,
         deduction,
+        pph21,
         netSalary,
         note,
       },
@@ -107,6 +111,7 @@ export async function POST(request: NextRequest) {
         allowance,
         bonus,
         deduction,
+        pph21,
         netSalary,
         note,
       },
@@ -116,7 +121,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       payroll,
-      summary: { hadir, terlambat, alphaDays, workingDays },
+      summary: {
+        hadir,
+        terlambat,
+        alphaDays,
+        workingDays,
+        pph21,
+        gross,
+      },
     });
   } catch {
     return NextResponse.json(

@@ -20,6 +20,11 @@ enum RecordType {
   DINAS
 }
 
+enum MaritalStatus {
+  LAJANG
+  KAWIN
+}
+
 model Company {
   id          String   @id @default(cuid())
   name        String
@@ -98,10 +103,12 @@ model User {
   company     Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
   shiftId     String?
   shift       Shift?       @relation(fields: [shiftId], references: [id], onDelete: SetNull)
-  active      Boolean      @default(true)
-  baseSalary  Int          @default(0)
-  overtimeRate Int         @default(0)
-  createdAt   DateTime     @default(now())
+  active       Boolean       @default(true)
+  baseSalary   Int           @default(0)
+  overtimeRate Int           @default(0)
+  maritalStatus MaritalStatus @default(LAJANG)
+  dependents   Int           @default(0)
+  createdAt    DateTime      @default(now())
   updatedAt   DateTime     @updatedAt
   attendances Attendance[]
   rosters     Roster[]
@@ -219,6 +226,7 @@ model Payroll {
   allowance  Int      @default(0)
   bonus      Int      @default(0)
   deduction  Int      @default(0)
+  pph21      Int      @default(0)
   netSalary  Int
   status     String   @default("DRAFT")
   note       String?

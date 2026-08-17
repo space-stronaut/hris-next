@@ -56,6 +56,11 @@ export async function POST(request: NextRequest) {
       0,
       Math.round(Number(body.overtimeRate) || 0)
     );
+    const maritalStatus = body.maritalStatus === "KAWIN" ? "KAWIN" : "LAJANG";
+    const dependents = Math.min(
+      Math.max(0, Math.round(Number(body.dependents) || 0)),
+      3
+    );
     const shiftId = body.shiftId
       ? String(body.shiftId).trim()
       : null;
@@ -84,6 +89,8 @@ export async function POST(request: NextRequest) {
         role,
         baseSalary,
         overtimeRate,
+        maritalStatus,
+        dependents,
         shiftId,
         companyId: session.companyId,
       },

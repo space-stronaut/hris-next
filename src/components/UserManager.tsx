@@ -12,6 +12,8 @@ type UserRow = {
   active: boolean;
   baseSalary: number;
   overtimeRate: number;
+  maritalStatus: "LAJANG" | "KAWIN";
+  dependents: number;
   shiftId: string | null;
   shift?: { name: string } | null;
   createdAt: Date;
@@ -34,6 +36,8 @@ export default function UserManager({
   const [role, setRole] = useState("KARYAWAN");
   const [baseSalary, setBaseSalary] = useState("");
   const [overtimeRate, setOvertimeRate] = useState("");
+  const [maritalStatus, setMaritalStatus] = useState("LAJANG");
+  const [dependents, setDependents] = useState("0");
   const [shiftId, setShiftId] = useState(shifts[0]?.id || "");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -53,6 +57,8 @@ export default function UserManager({
           role,
           baseSalary: Number(baseSalary) || 0,
           overtimeRate: Number(overtimeRate) || 0,
+          maritalStatus,
+          dependents: Number(dependents) || 0,
           shiftId: shiftId || null,
         }),
       });
@@ -68,6 +74,8 @@ export default function UserManager({
       setRole("KARYAWAN");
       setBaseSalary("");
       setOvertimeRate("");
+      setMaritalStatus("LAJANG");
+      setDependents("0");
       setShiftId(shifts[0]?.id || "");
       router.refresh();
     } catch {
@@ -125,6 +133,29 @@ export default function UserManager({
     const data = await res.json();
     if (!res.ok) {
       alert(data.message || "Gagal mengubah tarif lembur.");
+      return;
+    }
+    router.refresh();
+  }
+
+  async function setPtkp(id: string) {
+    const statusInput = window.prompt(
+      "Status Kawin (ketik 'KAWIN' atau 'LAJANG'):",
+      "LAJANG"
+    );
+    if (statusInput === null) return;
+    const maritalStatus = statusInput.trim().toUpperCase() === "KAWIN" ? "KAWIN" : "LAJANG";
+    const depInput = window.prompt("Jumlah Tanggungan (0-3):", "0");
+    if (depInput === null) return;
+    const dependents = Math.min(Math.max(0, Math.round(Number(depInput) || 0)), 3);
+    const res = await fetch(`/api/users/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ maritalStatus, dependents }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.message || "Gagal mengubah data PTKP.");
       return;
     }
     router.refresh();
@@ -275,6 +306,34 @@ export default function UserManager({
             </select>
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Status Kawin (PTKP)
+            </label>
+            <select
+              value={maritalStatus}
+              onChange={(e) => setMaritalStatus(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="LAJANG">Lajang (TK)</option>
+              <option value="KAWIN">Kawin (K)</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Tanggungan (0-3)
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="3"
+              value={dependents}
+              onChange={(e) => setDependents(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="0"
+            />
+          </div>
+
           {error && (
             <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-600 sm:col-span-2 lg:col-span-6">
               {error}
@@ -309,6 +368,7 @@ export default function UserManager({
                 <th className="px-6 py-3">Shift</th>
                 <th className="px-6 py-3">Gaji Pokok</th>
                 <th className="px-6 py-3">Lembur/Jam</th>
+                <th className="px-6 py-3">PTKP</th>
                 <th className="px-6 py-3">Absensi</th>
                 <th className="px-6 py-3">Status</th>
                 <th className="px-6 py-3 text-right">Aksi</th>
@@ -343,6 +403,9 @@ export default function UserManager({
                   <td className="px-6 py-3 text-slate-700">
                     {u.overtimeRate > 0 ? formatRupiah(u.overtimeRate) + "/jam" : "-"}
                   </td>
+                  <td className="px-6 py-3 text-slate-700">
+                    {u.maritalStatus === "KAWIN" ? "K" : "TK"}/{u.dependents}
+                  </td>
                   <td className="px-6 py-3 text-slate-600">
                     {u._count.attendances} hari
                   </td>
@@ -372,6 +435,12 @@ export default function UserManager({
                         Lembur
                       </button>
                       <button
+                        onClick={() => setPtkp(u.id)}
+                        className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                      >
+                        PTKP
+                      </button>
+                      <button
                         onClick={() => setDefaultShift(u.id)}
                         className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
                       >
@@ -396,7 +465,7 @@ export default function UserManager({
               {users.length === 0 && (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="px-6 py-8 text-center text-slate-500"
                   >
                     Belum ada karyawan.

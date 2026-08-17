@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { calculatePph21 } from "@/lib/tax";
 
 export async function PATCH(
   request: NextRequest,
@@ -51,7 +52,18 @@ export async function PATCH(
     const allowance = (data.allowance as number) ?? payroll.allowance;
     const bonus = (data.bonus as number) ?? payroll.bonus;
     const deduction = (data.deduction as number) ?? payroll.deduction;
-    data.netSalary = baseSalary + allowance + bonus - deduction;
+    const user = await prisma.user.findFirst({
+      where: { id: payroll.userId },
+      select: { maritalStatus: true, dependents: true },
+    });
+    const gross = baseSalary + allowance + bonus;
+    const pph21 = calculatePph21(
+      user?.maritalStatus ?? "LAJANG",
+      user?.dependents ?? 0,
+      gross
+    );
+    data.pph21 = pph21;
+    data.netSalary = gross - pph21 - deduction;
 
     const updated = await prisma.payroll.update({
       where: { id },

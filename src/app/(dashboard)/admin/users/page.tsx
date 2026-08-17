@@ -19,6 +19,8 @@ export default async function AdminUsersPage() {
       active: true,
       baseSalary: true,
       overtimeRate: true,
+      maritalStatus: true,
+      dependents: true,
       shiftId: true,
       shift: { select: { name: true } },
       createdAt: true,

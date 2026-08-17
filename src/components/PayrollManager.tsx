@@ -19,6 +19,7 @@ type PayrollRow = {
   allowance: number;
   bonus: number;
   deduction: number;
+  pph21: number;
   netSalary: number;
   status: string;
   user: { name: string; username: string };
@@ -84,7 +85,7 @@ export default function PayrollManager({
         return;
       }
       setSummary(
-        `Payroll ${formatPeriod(period)} dibuat: Hadir ${data.summary.hadir}, Terlambat ${data.summary.terlambat}, Alpa ${data.summary.alphaDays} hari. Potongan ${formatRupiah(data.payroll.deduction)}.`
+        `Payroll ${formatPeriod(period)} dibuat: Hadir ${data.summary.hadir}, Terlambat ${data.summary.terlambat}, Alpa ${data.summary.alphaDays} hari. PPh 21 (TER) ${formatRupiah(data.summary.pph21)}. Potongan ${formatRupiah(data.payroll.deduction)}.`
       );
       setAllowance("");
       setBonus("");
@@ -280,6 +281,7 @@ export default function PayrollManager({
                 <th className="px-6 py-3">Gaji Pokok</th>
                 <th className="px-6 py-3">Tunjangan</th>
                 <th className="px-6 py-3">Bonus</th>
+                <th className="px-6 py-3">PPh 21 (TER)</th>
                 <th className="px-6 py-3">Potongan</th>
                 <th className="px-6 py-3">Gaji Bersih</th>
                 <th className="px-6 py-3">Status</th>
@@ -290,7 +292,7 @@ export default function PayrollManager({
               {filtered.length === 0 && (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="px-6 py-8 text-center text-slate-500"
                   >
                     Belum ada data payroll.
@@ -311,6 +313,9 @@ export default function PayrollManager({
                   <td className="px-6 py-3">{formatRupiah(p.baseSalary)}</td>
                   <td className="px-6 py-3">{formatRupiah(p.allowance)}</td>
                   <td className="px-6 py-3">{formatRupiah(p.bonus)}</td>
+                  <td className="px-6 py-3 text-orange-600">
+                    -{formatRupiah(p.pph21)}
+                  </td>
                   <td className="px-6 py-3 text-red-600">
                     -{formatRupiah(p.deduction)}
                   </td>

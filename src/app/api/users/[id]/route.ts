@@ -56,6 +56,15 @@ export async function PATCH(
         Math.round(Number(body.overtimeRate) || 0)
       );
     }
+    if (body.maritalStatus !== undefined) {
+      data.maritalStatus = body.maritalStatus === "KAWIN" ? "KAWIN" : "LAJANG";
+    }
+    if (body.dependents !== undefined) {
+      data.dependents = Math.min(
+        Math.max(0, Math.round(Number(body.dependents) || 0)),
+        3
+      );
+    }
     if (body.shiftId !== undefined) {
       data.shiftId = body.shiftId ? String(body.shiftId).trim() : null;
     }
