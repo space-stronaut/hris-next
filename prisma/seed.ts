@@ -38,12 +38,8 @@ type EmployeeSeed = {
   dependents: number;
   onTimeIn: string[];
   lateIn: string[];
-  overtimeRate: number;
+  overtimeRate?: number;
 };
-
-function employeeDefaults(emp: EmployeeSeed): EmployeeSeed {
-  return { overtimeRate: 25000, ...emp };
-}
 
 async function seedCompany(
   company: { name: string; code: string; address?: string }
@@ -143,7 +139,7 @@ async function seedCompany(
   });
 
   const specs: EmployeeSeed[] = [
-    employeeDefaults({
+    {
       username: `budi_${company.code}`,
       name: "Budi Santoso",
       baseSalary: 4500000,
@@ -151,8 +147,8 @@ async function seedCompany(
       dependents: 0,
       onTimeIn: ["07:45", "07:52", "07:58"],
       lateIn: ["08:10", "08:24", "08:35"],
-    }),
-    employeeDefaults({
+    },
+    {
       username: `sari_${company.code}`,
       name: "Sari Dewi",
       baseSalary: 5000000,
@@ -160,8 +156,8 @@ async function seedCompany(
       dependents: 1,
       onTimeIn: ["07:40", "07:50", "07:55"],
       lateIn: ["08:05", "08:20", "08:40"],
-    }),
-    employeeDefaults({
+    },
+    {
       username: `dewi_${company.code}`,
       name: "Dewi Lestari",
       baseSalary: 7200000,
@@ -169,7 +165,7 @@ async function seedCompany(
       dependents: 3,
       onTimeIn: ["07:48", "07:54", "07:57"],
       lateIn: ["08:12", "08:26", "08:38"],
-    }),
+    },
   ];
 
   const employees: { user: Awaited<ReturnType<typeof prisma.user.create>>; spec: EmployeeSeed }[] = [];
@@ -184,7 +180,7 @@ async function seedCompany(
         baseSalary: spec.baseSalary,
         maritalStatus: spec.maritalStatus,
         dependents: spec.dependents,
-        overtimeRate: spec.overtimeRate,
+        overtimeRate: spec.overtimeRate ?? 25000,
         shiftId: shift.id,
       },
     });
@@ -286,7 +282,7 @@ async function seedCompany(
   await prisma.attendance.createMany({ data: attendanceData });
 
   const byName = (name: string) =>
-    employees.find((e) => e.user.name === name)?.user;
+    employees.find((e) => e.user.name === name)?.user!;
   const budi = byName("Budi Santoso");
   const sari = byName("Sari Dewi");
   const dewi = byName("Dewi Lestari");
