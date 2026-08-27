@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { hash } from "bcryptjs";
 
+const SALARY_TYPES_VALUES = ["BULAN", "MINGGU", "HARI", "JAM", "PROYEK", "BORONGAN"];
+
 export async function GET() {
   try {
     const session = await getCurrentUser();
@@ -48,7 +50,7 @@ export async function POST(request: NextRequest) {
     const username = String(body.username || "").trim();
     const password = String(body.password || "");
     const name = String(body.name || "").trim();
-    const role = ["ADMIN", "HRD", "KARYAWAN"].includes(body.role)
+    const role = ["ADMIN", "HRD", "SPV", "KARYAWAN"].includes(body.role)
       ? body.role
       : "KARYAWAN";
     const baseSalary = Math.max(0, Math.round(Number(body.baseSalary) || 0));
@@ -64,12 +66,38 @@ export async function POST(request: NextRequest) {
     const shiftId = body.shiftId
       ? String(body.shiftId).trim()
       : null;
+    const supervisorId = role === "KARYAWAN" && body.supervisorId
+      ? String(body.supervisorId).trim()
+      : null;
+    const departmentId = body.departmentId
+      ? String(body.departmentId).trim()
+      : null;
+    const position = body.position ? String(body.position).trim() : null;
+    const leaveQuota = Math.max(0, Math.round(Number(body.leaveQuota) || 12));
+    const leaveAccrual = Math.max(0, Math.round(Number(body.leaveAccrual) || 1));
+    const leaveAccrualPeriod = body.leaveAccrualPeriod === "YEARLY" ? "YEARLY" : "MONTHLY";
+    const salaryType = SALARY_TYPES_VALUES.includes(String(body.salaryType))
+      ? String(body.salaryType)
+      : "BULAN";
 
     if (!username || !password || !name) {
       return NextResponse.json(
         { success: false, message: "Semua field wajib diisi." },
         { status: 400 }
       );
+    }
+
+    if (supervisorId) {
+      const supervisor = await prisma.user.findFirst({
+        where: { id: supervisorId, companyId: session.companyId, role: "SPV" },
+        select: { id: true },
+      });
+      if (!supervisor) {
+        return NextResponse.json(
+          { success: false, message: "Supervisor tidak valid." },
+          { status: 400 }
+        );
+      }
     }
 
     const exists = await prisma.user.findUnique({ where: { username } });
@@ -92,6 +120,13 @@ export async function POST(request: NextRequest) {
         maritalStatus,
         dependents,
         shiftId,
+        supervisorId,
+        departmentId,
+        position,
+        leaveQuota,
+        leaveAccrual,
+        leaveAccrualPeriod,
+        salaryType,
         companyId: session.companyId,
       },
     });

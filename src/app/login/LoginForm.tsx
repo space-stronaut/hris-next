@@ -36,6 +36,8 @@ export default function LoginForm() {
           ? "/admin"
           : data.role === "HRD"
           ? "/hrd"
+          : data.role === "SPV"
+          ? "/spv"
           : "/dashboard";
       router.replace(from || target);
       router.refresh();

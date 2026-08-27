@@ -8,11 +8,11 @@ export async function PATCH(
 ) {
   try {
     const session = await getCurrentUser();
-    if (
-      !session ||
-      !session.companyId ||
-      (session.role !== "HRD" && session.role !== "ADMIN")
-    ) {
+    const isApprover =
+      session?.role === "HRD" ||
+      session?.role === "ADMIN" ||
+      session?.role === "SPV";
+    if (!session || !isApprover) {
       return NextResponse.json(
         { success: false, message: "Unauthorized" },
         { status: 401 }
@@ -23,8 +23,16 @@ export async function PATCH(
     const body = await request.json();
     const status = body.status === "APPROVED" ? "APPROVED" : "REJECTED";
 
+    const scopedWhere =
+      session.role === "SPV"
+        ? { user: { supervisorId: session.sub } }
+        : session.companyId
+        ? { user: { companyId: session.companyId } }
+        : {};
+
     const overtime = await prisma.overtime.findFirst({
-      where: { id, user: { companyId: session.companyId } },
+      where: { id, ...scopedWhere },
+      include: { user: { select: { name: true } } },
     });
     if (!overtime) {
       return NextResponse.json(
@@ -39,10 +47,21 @@ export async function PATCH(
       );
     }
 
-    const updated = await prisma.overtime.update({
-      where: { id },
-      data: { status, approvedById: session.sub },
+    const updated = await prisma.$transaction(async (tx) => {
+      const u = await tx.overtime.update({
+        where: { id },
+        data: { status, approvedById: session.sub },
+      });
+      await tx.notification.create({
+        data: {
+          userId: overtime.userId,
+          title: status === "APPROVED" ? "Lembur Disetujui" : "Lembur Ditolak",
+          message: `${status === "APPROVED" ? "Disetujui" : "Ditolak"} oleh ${session.name}.`,
+        },
+      });
+      return u;
     });
+
     return NextResponse.json({ success: true, overtime: updated });
   } catch {
     return NextResponse.json(

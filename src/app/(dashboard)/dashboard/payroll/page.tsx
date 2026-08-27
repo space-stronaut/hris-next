@@ -1,4 +1,5 @@
-﻿import { prisma } from "@/lib/prisma";
+﻿import Link from "next/link";
+import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { formatRupiah, formatPeriod } from "@/lib/format";
 
@@ -40,20 +41,23 @@ export default async function MyPayrollPage() {
             <thead>
               <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
                 <th className="px-6 py-3">Periode</th>
+                <th className="px-6 py-3">Bagian</th>
                 <th className="px-6 py-3">Gaji Pokok</th>
                 <th className="px-6 py-3">Tunjangan</th>
                 <th className="px-6 py-3">Bonus</th>
                 <th className="px-6 py-3">PPh 21 (TER)</th>
+                <th className="px-6 py-3">BPJS</th>
                 <th className="px-6 py-3">Potongan</th>
                 <th className="px-6 py-3">Gaji Bersih</th>
                 <th className="px-6 py-3">Status</th>
+                <th className="px-6 py-3 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody>
               {payrolls.length === 0 && (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={11}
                     className="px-6 py-8 text-center text-slate-500"
                   >
                     Belum ada data gaji.
@@ -65,11 +69,15 @@ export default async function MyPayrollPage() {
                   <td className="px-6 py-3 font-medium text-slate-900">
                     {formatPeriod(p.period)}
                   </td>
+                  <td className="px-6 py-3 text-slate-600">{p.label || "—"}</td>
                   <td className="px-6 py-3">{formatRupiah(p.baseSalary)}</td>
                   <td className="px-6 py-3">{formatRupiah(p.allowance)}</td>
                   <td className="px-6 py-3">{formatRupiah(p.bonus)}</td>
                   <td className="px-6 py-3 text-orange-600">
                     -{formatRupiah(p.pph21)}
+                  </td>
+                  <td className="px-6 py-3 text-amber-600">
+                    -{formatRupiah(p.bpjsKesehatan + p.bpjsJht + p.bpjsJp)}
                   </td>
                   <td className="px-6 py-3 text-red-600">
                     -{formatRupiah(p.deduction)}
@@ -78,6 +86,14 @@ export default async function MyPayrollPage() {
                     {formatRupiah(p.netSalary)}
                   </td>
                   <td className="px-6 py-3">{statusBadge(p.status)}</td>
+                  <td className="px-6 py-3 text-right">
+                    <Link
+                      href={`/dashboard/payroll/${p.id}`}
+                      className="inline-flex rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                    >
+                      Slip
+                    </Link>
+                  </td>
                 </tr>
               ))}
             </tbody>

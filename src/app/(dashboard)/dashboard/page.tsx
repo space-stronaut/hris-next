@@ -1,8 +1,9 @@
 ﻿import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { toDateKey, formatTime, formatDuration, formatDateKey } from "@/lib/date";
+import { toDateKey, formatTime, formatDuration, formatDateKey, weekdayKeys } from "@/lib/date";
 import AttendancePanel from "@/components/AttendancePanel";
+import TrendChart from "@/components/TrendChart";
 
 export default async function DashboardPage() {
   const session = await getCurrentUser();
@@ -24,6 +25,21 @@ export default async function DashboardPage() {
     orderBy: { dateKey: "desc" },
     take: 10,
   });
+
+  const trendKeys = weekdayKeys(14);
+  const myTrend = await prisma.attendance.findMany({
+    where: {
+      userId: session.sub,
+      dateKey: { gte: trendKeys[0] },
+      checkIn: { not: null },
+    },
+    select: { dateKey: true },
+  });
+  const mySet = new Set(myTrend.map((a) => a.dateKey));
+  const trendData = trendKeys.map((k) => ({
+    dateKey: k,
+    value: mySet.has(k) ? 1 : 0,
+  }));
 
   return (
     <div className="space-y-6">
@@ -52,6 +68,8 @@ export default async function DashboardPage() {
         }
         shiftName={shiftName}
       />
+
+      <TrendChart title="Kehadiran Saya (14 Hari Kerja Terakhir)" data={trendData} />
 
       <div className="rounded-2xl border border-slate-200 bg-surface shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">

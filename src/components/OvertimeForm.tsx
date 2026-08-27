@@ -2,7 +2,9 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { StatusBadge } from "@/components/OvertimeApprovals";
+import { StatusBadge } from "@/components/StatusBadge";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/usePagination";
 
 type OvertimeRow = {
   id: string;
@@ -29,6 +31,9 @@ export default function OvertimeForm({
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const pag = usePagination(overtimes.length);
+  const pageRows = overtimes.slice(pag.start, pag.end);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -143,7 +148,7 @@ export default function OvertimeForm({
                   </td>
                 </tr>
               )}
-              {overtimes.map((o) => (
+              {pageRows.map((o) => (
                 <tr key={o.id} className="border-b border-slate-100">
                   <td className="px-6 py-3 whitespace-nowrap">{o.dateKey}</td>
                   <td className="px-6 py-3 whitespace-nowrap">
@@ -164,6 +169,12 @@ export default function OvertimeForm({
             </tbody>
           </table>
         </div>
+        <Pagination
+          total={overtimes.length}
+          page={pag.page}
+          pageSize={pag.pageSize}
+          onPageChange={pag.goToPage}
+        />
       </div>
     </div>
   );

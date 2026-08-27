@@ -1,0 +1,2 @@
+ALTER TABLE "tb_hris_user" ADD COLUMN "leaveAccrual" INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE "tb_hris_user" ADD COLUMN "leaveAccrualPeriod" TEXT NOT NULL DEFAULT 'MONTHLY';

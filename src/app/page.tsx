@@ -11,6 +11,8 @@ export default async function HomePage() {
       ? "/admin"
       : session.role === "HRD"
       ? "/hrd"
+      : session.role === "SPV"
+      ? "/spv"
       : "/dashboard"
   );
 }

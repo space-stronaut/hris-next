@@ -3,6 +3,8 @@
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { formatDateKey } from "@/lib/date";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/usePagination";
 
 type MeetingRow = {
   id: string;
@@ -94,6 +96,9 @@ export default function MeetingManager({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<ToastData | null>(null);
+
+  const pag = usePagination(meetings.length);
+  const pageMeetings = meetings.slice(pag.start, pag.end);
 
   const [editing, setEditing] = useState<EditingMeeting | null>(null);
   const [editLoading, setEditLoading] = useState(false);
@@ -334,7 +339,7 @@ export default function MeetingManager({
                   </td>
                 </tr>
               )}
-              {meetings.map((m) => (
+              {pageMeetings.map((m) => (
                 <tr key={m.id} className="border-b border-slate-100">
                   <td className="px-6 py-3 whitespace-nowrap">
                     {formatDateKey(m.date)}
@@ -380,6 +385,12 @@ export default function MeetingManager({
             </tbody>
           </table>
         </div>
+        <Pagination
+          total={meetings.length}
+          page={pag.page}
+          pageSize={pag.pageSize}
+          onPageChange={pag.goToPage}
+        />
       </div>
 
       {editing && (

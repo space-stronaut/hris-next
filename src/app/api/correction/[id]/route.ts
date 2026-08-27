@@ -8,11 +8,11 @@ export async function PATCH(
 ) {
   try {
     const session = await getCurrentUser();
-    if (
-      !session ||
-      !session.companyId ||
-      (session.role !== "HRD" && session.role !== "ADMIN")
-    ) {
+    const isApprover =
+      session?.role === "HRD" ||
+      session?.role === "ADMIN" ||
+      session?.role === "SPV";
+    if (!session || !isApprover) {
       return NextResponse.json(
         { success: false, message: "Unauthorized" },
         { status: 401 }
@@ -23,8 +23,16 @@ export async function PATCH(
     const body = await request.json();
     const status = body.status === "APPROVED" ? "APPROVED" : "REJECTED";
 
+    const scopedWhere =
+      session.role === "SPV"
+        ? { user: { supervisorId: session.sub } }
+        : session.companyId
+        ? { user: { companyId: session.companyId } }
+        : {};
+
     const correction = await prisma.attendanceCorrection.findFirst({
-      where: { id, user: { companyId: session.companyId } },
+      where: { id, ...scopedWhere },
+      include: { user: { select: { name: true } } },
     });
     if (!correction) {
       return NextResponse.json(
@@ -39,23 +47,36 @@ export async function PATCH(
       );
     }
 
-    if (status === "APPROVED") {
-      const data: Record<string, unknown> = {};
-      if (correction.requestedCheckIn) data.checkIn = correction.requestedCheckIn;
-      if (correction.requestedCheckOut)
-        data.checkOut = correction.requestedCheckOut;
-      if (Object.keys(data).length > 0) {
-        await prisma.attendance.update({
-          where: { id: correction.attendanceId },
-          data,
-        });
+    const updated = await prisma.$transaction(async (tx) => {
+      if (status === "APPROVED") {
+        const data: Record<string, unknown> = {};
+        if (correction.requestedCheckIn) data.checkIn = correction.requestedCheckIn;
+        if (correction.requestedCheckOut)
+          data.checkOut = correction.requestedCheckOut;
+        if (Object.keys(data).length > 0) {
+          await tx.attendance.update({
+            where: { id: correction.attendanceId },
+            data,
+          });
+        }
       }
-    }
-
-    const updated = await prisma.attendanceCorrection.update({
-      where: { id },
-      data: { status, approvedById: session.sub },
+      const u = await tx.attendanceCorrection.update({
+        where: { id },
+        data: { status, approvedById: session.sub },
+      });
+      await tx.notification.create({
+        data: {
+          userId: correction.userId,
+          title:
+            status === "APPROVED"
+              ? "Koreksi Absensi Disetujui"
+              : "Koreksi Absensi Ditolak",
+          message: `${status === "APPROVED" ? "Disetujui" : "Ditolak"} oleh ${session.name}.`,
+        },
+      });
+      return u;
     });
+
     return NextResponse.json({ success: true, correction: updated });
   } catch {
     return NextResponse.json(

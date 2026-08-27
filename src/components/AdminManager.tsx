@@ -2,6 +2,9 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/usePagination";
+import ResetPasswordModal from "@/components/ResetPasswordModal";
 
 type AdminRow = {
   id: string;
@@ -25,6 +28,10 @@ export default function AdminManager({
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetTarget, setResetTarget] = useState<AdminRow | null>(null);
+
+  const pag = usePagination(admins.length);
+  const pageAdmins = admins.slice(pag.start, pag.end);
 
   async function createAdmin(e: FormEvent) {
     e.preventDefault();
@@ -50,23 +57,6 @@ export default function AdminManager({
       setError("Terjadi kesalahan.");
       setLoading(false);
     }
-  }
-
-  async function resetPassword(id: string) {
-    const newPassword = window.prompt("Password baru untuk admin ini:");
-    if (newPassword === null || !newPassword) return;
-    const res = await fetch(`/api/companies/${companyId}/admins/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password: newPassword }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.message || "Gagal mereset password.");
-      return;
-    }
-    alert("Password berhasil diubah.");
-    router.refresh();
   }
 
   async function toggleActive(id: string, active: boolean) {
@@ -178,7 +168,7 @@ export default function AdminManager({
               </tr>
             </thead>
             <tbody>
-              {admins.map((a) => (
+              {pageAdmins.map((a) => (
                 <tr key={a.id} className="border-b border-slate-100">
                   <td className="px-6 py-3 font-medium text-slate-900">
                     {a.name}
@@ -198,7 +188,7 @@ export default function AdminManager({
                   <td className="px-6 py-3">
                     <div className="flex justify-end gap-2">
                       <button
-                        onClick={() => resetPassword(a.id)}
+                        onClick={() => setResetTarget(a)}
                         className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
                       >
                         Reset Password
@@ -232,7 +222,22 @@ export default function AdminManager({
             </tbody>
           </table>
         </div>
+        <Pagination
+          total={admins.length}
+          page={pag.page}
+          pageSize={pag.pageSize}
+          onPageChange={pag.goToPage}
+        />
       </div>
+
+      {resetTarget && (
+        <ResetPasswordModal
+          companyId={companyId}
+          adminId={resetTarget.id}
+          adminName={resetTarget.name}
+          onClose={() => setResetTarget(null)}
+        />
+      )}
     </div>
   );
 }

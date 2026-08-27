@@ -2,6 +2,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { formatDateKey, daysBetween } from "@/lib/date";
 import { formatDateTime } from "@/lib/date";
+import { leaveGranted, leaveBalance } from "@/lib/leave";
 import LeaveForm from "@/components/LeaveForm";
 
 const typeLabels: Record<string, string> = {
@@ -38,16 +39,79 @@ export default async function MyLeavesPage() {
     orderBy: { createdAt: "desc" },
   });
 
+  const user = await prisma.user.findUnique({
+    where: { id: session.sub },
+    select: {
+      leaveQuota: true,
+      leaveUsed: true,
+      leaveAccrual: true,
+      leaveAccrualPeriod: true,
+      joinDate: true,
+    },
+  });
+
   const approved = leaves.filter((l) => l.status === "APPROVED");
   const pending = leaves.filter((l) => l.status === "PENDING");
+  const granted = leaveGranted({
+    initial: user?.leaveQuota ?? 0,
+    used: user?.leaveUsed ?? 0,
+    joinDate: user?.joinDate,
+    accrual: user?.leaveAccrual ?? 1,
+    period: user?.leaveAccrualPeriod ?? "MONTHLY",
+  });
+  const balance = leaveBalance({
+    initial: user?.leaveQuota ?? 0,
+    used: user?.leaveUsed ?? 0,
+    joinDate: user?.joinDate,
+    accrual: user?.leaveAccrual ?? 1,
+    period: user?.leaveAccrualPeriod ?? "MONTHLY",
+  });
+  const accrualLabel =
+    user?.leaveAccrualPeriod === "YEARLY"
+      ? `${user?.leaveAccrual ?? 0} hari/tahun`
+      : `${user?.leaveAccrual ?? 0} hari/bulan`;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Cuti Saya</h1>
         <p className="text-slate-500 mt-1">
-          Disetujui: {approved.length} Â· Menunggu: {pending.length}
+          Disetujui: {approved.length} · Menunggu: {pending.length}
         </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+        <div className="rounded-2xl border border-slate-200 bg-surface p-5 shadow-sm">
+          <div className="text-3xl font-bold text-blue-600">{balance} hari</div>
+          <div className="mt-1 text-sm font-medium text-slate-700">
+            Sisa Cuti
+          </div>
+          <div className="text-xs text-slate-500">Jatah {accrualLabel}</div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-surface p-5 shadow-sm">
+          <div className="text-3xl font-bold text-slate-900">
+            {user?.leaveUsed ?? 0} hari
+          </div>
+          <div className="mt-1 text-sm font-medium text-slate-700">
+            Cuti Terpakai
+          </div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-surface p-5 shadow-sm">
+          <div className="text-3xl font-bold text-slate-900">{granted} hari</div>
+          <div className="mt-1 text-sm font-medium text-slate-700">
+            Total Tersedia
+          </div>
+          <div className="text-xs text-slate-500">jatah + akumulasi</div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-surface p-5 shadow-sm">
+          <div className="text-3xl font-bold text-slate-900">
+            {user?.leaveQuota ?? 0} hari
+          </div>
+          <div className="mt-1 text-sm font-medium text-slate-700">
+            Jatah Awal
+          </div>
+          <div className="text-xs text-slate-500">diatur admin</div>
+        </div>
       </div>
 
       <LeaveForm />

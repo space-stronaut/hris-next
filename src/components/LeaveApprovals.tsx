@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/usePagination";
 
 type LeaveRow = {
   id: string;
@@ -44,7 +46,10 @@ export default function LeaveApprovals({ leaves }: { leaves: LeaveRow[] }) {
   const pending = leaves.filter((l) => l.status === "PENDING");
   const processed = leaves.filter((l) => l.status !== "PENDING");
 
+  const pag = usePagination(processed.length);
+
   function renderTable(rows: LeaveRow[]) {
+    const pageRows = rows.slice(pag.start, pag.end);
     if (rows.length === 0) {
       return (
         <div className="px-6 py-8 text-center text-slate-500">
@@ -53,7 +58,8 @@ export default function LeaveApprovals({ leaves }: { leaves: LeaveRow[] }) {
       );
     }
     return (
-      <div className="overflow-x-auto">
+      <>
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
@@ -66,7 +72,7 @@ export default function LeaveApprovals({ leaves }: { leaves: LeaveRow[] }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((l) => (
+            {pageRows.map((l) => (
               <tr key={l.id} className="border-b border-slate-100">
                 <td className="px-6 py-3 font-medium text-slate-900">
                   {l.user.name}
@@ -119,6 +125,13 @@ export default function LeaveApprovals({ leaves }: { leaves: LeaveRow[] }) {
           </tbody>
         </table>
       </div>
+        <Pagination
+          total={rows.length}
+          page={pag.page}
+          pageSize={pag.pageSize}
+          onPageChange={pag.goToPage}
+        />
+      </>
     );
   }
 

@@ -2,6 +2,8 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/usePagination";
 
 type UserRow = { id: string; name: string; shiftId: string | null; shift?: { name: string } | null };
 type ShiftRow = { id: string; name: string; checkIn: string; checkOut: string };
@@ -29,6 +31,9 @@ export default function RosterManager({
   const [dateKey, setDateKey] = useState(todayKey);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const pag = usePagination(rosters.length);
+  const pageRosters = rosters.slice(pag.start, pag.end);
 
   async function assign(e: FormEvent) {
     e.preventDefault();
@@ -155,7 +160,7 @@ export default function RosterManager({
                   </td>
                 </tr>
               )}
-              {rosters.map((r) => (
+              {pageRosters.map((r) => (
                 <tr key={r.id} className="border-b border-slate-100">
                   <td className="px-6 py-3 font-medium text-slate-900">{r.user.name}</td>
                   <td className="px-6 py-3 text-slate-700">{r.shift.name}</td>
@@ -177,6 +182,12 @@ export default function RosterManager({
             </tbody>
           </table>
         </div>
+        <Pagination
+          total={rosters.length}
+          page={pag.page}
+          pageSize={pag.pageSize}
+          onPageChange={pag.goToPage}
+        />
       </div>
     </div>
   );

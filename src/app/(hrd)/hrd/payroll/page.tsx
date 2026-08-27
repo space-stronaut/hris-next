@@ -9,12 +9,12 @@ export default async function HrdPayrollPage() {
   const [employees, payrolls] = await Promise.all([
     prisma.user.findMany({
       where: { role: { in: ["KARYAWAN", "HRD"] }, companyId: session.companyId },
-      select: { id: true, name: true, username: true, role: true, baseSalary: true },
+      select: { id: true, name: true, username: true, role: true, baseSalary: true, salaryType: true },
       orderBy: { name: "asc" },
     }),
     prisma.payroll.findMany({
       where: { user: { companyId: session.companyId } },
-      include: { user: { select: { name: true, username: true } } },
+      include: { user: { select: { name: true, username: true, salaryType: true } } },
       orderBy: [{ period: "desc" }, { user: { name: "asc" } }],
     }),
   ]);

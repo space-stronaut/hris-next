@@ -2,7 +2,9 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { StatusBadge } from "@/components/OvertimeApprovals";
+import { StatusBadge } from "@/components/StatusBadge";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/usePagination";
 
 type CorrectionRow = {
   id: string;
@@ -29,6 +31,9 @@ export default function CorrectionForm({
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const pag = usePagination(corrections.length);
+  const pageRows = corrections.slice(pag.start, pag.end);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -164,7 +169,7 @@ export default function CorrectionForm({
                   </td>
                 </tr>
               )}
-              {corrections.map((c) => (
+              {pageRows.map((c) => (
                 <tr key={c.id} className="border-b border-slate-100">
                   <td className="px-6 py-3 whitespace-nowrap">{c.dateKey}</td>
                   <td className="px-6 py-3 text-slate-600">{c.reason}</td>
@@ -176,6 +181,12 @@ export default function CorrectionForm({
             </tbody>
           </table>
         </div>
+        <Pagination
+          total={corrections.length}
+          page={pag.page}
+          pageSize={pag.pageSize}
+          onPageChange={pag.goToPage}
+        />
       </div>
     </div>
   );

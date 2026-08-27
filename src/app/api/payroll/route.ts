@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { workingDaysInMonth } from "@/lib/date";
 import { calculatePph21 } from "@/lib/tax";
+import { calculateBpjs } from "@/lib/bpjs";
 
 export async function GET(request: NextRequest) {
   try {
@@ -91,27 +92,35 @@ export async function POST(request: NextRequest) {
     const deduction = alphaDays * dailyRate;
     const gross = baseSalary + allowance + bonus;
     const pph21 = calculatePph21(user.maritalStatus, user.dependents, gross);
-    const netSalary = gross - pph21 - deduction;
+    const bpjs = calculateBpjs(baseSalary);
+    const netSalary = gross - pph21 - deduction - bpjs.total;
 
     const payroll = await prisma.payroll.upsert({
-      where: { userId_period: { userId, period } },
+      where: { userId_period_label: { userId, period, label: "" } },
       update: {
         baseSalary,
         allowance,
         bonus,
         deduction,
         pph21,
+        bpjsKesehatan: bpjs.bpjsKesehatan,
+        bpjsJht: bpjs.bpjsJht,
+        bpjsJp: bpjs.bpjsJp,
         netSalary,
         note,
       },
       create: {
         userId,
         period,
+        label: "",
         baseSalary,
         allowance,
         bonus,
         deduction,
         pph21,
+        bpjsKesehatan: bpjs.bpjsKesehatan,
+        bpjsJht: bpjs.bpjsJht,
+        bpjsJp: bpjs.bpjsJp,
         netSalary,
         note,
       },
@@ -128,6 +137,7 @@ export async function POST(request: NextRequest) {
         workingDays,
         pph21,
         gross,
+        bpjs: bpjs.total,
       },
     });
   } catch {

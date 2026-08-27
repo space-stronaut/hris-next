@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatRupiah } from "@/lib/format";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/usePagination";
 
 type ClaimRow = {
   id: string;
@@ -46,7 +48,10 @@ export default function ClaimApprovals({ claims }: { claims: ClaimRow[] }) {
   const pending = claims.filter((c) => c.status === "PENDING");
   const processed = claims.filter((c) => c.status !== "PENDING");
 
+  const pag = usePagination(processed.length);
+
   function renderTable(rows: ClaimRow[]) {
+    const pageRows = rows.slice(pag.start, pag.end);
     if (rows.length === 0) {
       return (
         <div className="px-6 py-8 text-center text-slate-500">
@@ -55,7 +60,8 @@ export default function ClaimApprovals({ claims }: { claims: ClaimRow[] }) {
       );
     }
     return (
-      <div className="overflow-x-auto">
+      <>
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
@@ -69,7 +75,7 @@ export default function ClaimApprovals({ claims }: { claims: ClaimRow[] }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((c) => (
+            {pageRows.map((c) => (
               <tr key={c.id} className="border-b border-slate-100">
                 <td className="px-6 py-3 font-medium text-slate-900">
                   {c.user.name}
@@ -123,6 +129,13 @@ export default function ClaimApprovals({ claims }: { claims: ClaimRow[] }) {
           </tbody>
         </table>
       </div>
+        <Pagination
+          total={rows.length}
+          page={pag.page}
+          pageSize={pag.pageSize}
+          onPageChange={pag.goToPage}
+        />
+      </>
     );
   }
 

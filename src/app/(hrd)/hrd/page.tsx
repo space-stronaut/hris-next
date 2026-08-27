@@ -2,15 +2,27 @@
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { toDateKey, formatTime } from "@/lib/date";
-import CheckInTimeSetting from "@/components/CheckInTimeSetting";
+
+function weekdayKeys(count: number): string[] {
+  const keys: string[] = [];
+  const cursor = new Date();
+  while (keys.length < count) {
+    cursor.setDate(cursor.getDate() - 1);
+    const day = cursor.getDay();
+    if (day !== 0 && day !== 6) keys.unshift(toDateKey(cursor));
+  }
+  return keys;
+}
 
 export default async function HrdDashboardPage() {
   const session = await getCurrentUser();
   if (!session) return null;
 
   const dateKey = toDateKey();
+  const trendKeys = weekdayKeys(14);
+  const trendFrom = trendKeys[0];
 
-  const [totalEmployees, todayRecords, pendingLeaves, pendingClaims, company] =
+  const [totalEmployees, todayRecords, pendingLeaves, pendingClaims, pendingOvertimes, pendingCorrections, trend] =
     await Promise.all([
       prisma.user.count({
         where: { role: "KARYAWAN", companyId: session.companyId },
@@ -26,15 +38,28 @@ export default async function HrdDashboardPage() {
       prisma.claim.count({
         where: { status: "PENDING", user: { companyId: session.companyId } },
       }),
-      session.companyId
-        ? prisma.company.findUnique({
-            where: { id: session.companyId },
-            select: { checkInTime: true },
-          })
-        : Promise.resolve(null),
+      prisma.overtime.count({
+        where: { status: "PENDING", user: { companyId: session.companyId } },
+      }),
+      prisma.attendanceCorrection.count({
+        where: { status: "PENDING", user: { companyId: session.companyId } },
+      }),
+      prisma.attendance.findMany({
+        where: {
+          dateKey: { gte: trendFrom, lte: dateKey },
+          user: { companyId: session.companyId },
+          checkIn: { not: null },
+        },
+        select: { dateKey: true, status: true },
+      }),
     ]);
 
   const present = todayRecords.filter((r) => r.checkIn).length;
+  const trendMap = new Map<string, number>();
+  for (const t of trend) {
+    trendMap.set(t.dateKey, (trendMap.get(t.dateKey) || 0) + 1);
+  }
+  const maxTrend = Math.max(1, ...trendKeys.map((k) => trendMap.get(k) || 0));
 
   const stats = [
     {
@@ -65,6 +90,20 @@ export default async function HrdDashboardPage() {
       color: "text-orange-600",
       href: "/hrd/claims",
     },
+    {
+      label: "Lembur Menunggu",
+      value: pendingOvertimes,
+      sub: "perlu persetujuan",
+      color: "text-indigo-600",
+      href: "/hrd/overtime",
+    },
+    {
+      label: "Koreksi Menunggu",
+      value: pendingCorrections,
+      sub: "perlu persetujuan",
+      color: "text-rose-600",
+      href: "/hrd/corrections",
+    },
   ];
 
   return (
@@ -74,7 +113,7 @@ export default async function HrdDashboardPage() {
         <p className="text-slate-500 mt-1">Ringkasan kehadiran dan personalia</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
         {stats.map((s) => (
           <Link
             key={s.label}
@@ -90,9 +129,34 @@ export default async function HrdDashboardPage() {
         ))}
       </div>
 
-      <CheckInTimeSetting
-        initialCheckInTime={company?.checkInTime || "08:00"}
-      />
+      <div className="rounded-2xl border border-slate-200 bg-surface shadow-sm">
+        <div className="border-b border-slate-200 px-6 py-4">
+          <h2 className="text-lg font-semibold text-slate-900">
+            Tren Kehadiran (14 Hari Kerja Terakhir)
+          </h2>
+        </div>
+        <div className="flex items-end gap-2 overflow-x-auto px-6 py-6">
+          {trendKeys.map((k) => {
+            const count = trendMap.get(k) || 0;
+            const pct = Math.round((count / maxTrend) * 100);
+            return (
+              <div
+                key={k}
+                className="flex min-w-[40px] flex-1 flex-col items-center gap-1"
+              >
+                <span className="text-xs font-medium text-slate-600">{count}</span>
+                <div
+                  className="w-full max-w-[36px] rounded-t-md bg-blue-500"
+                  style={{ height: `${Math.max(4, pct)}px` }}
+                />
+                <span className="text-[10px] text-slate-400">
+                  {k.slice(8, 10)}/{k.slice(5, 7)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="rounded-2xl border border-slate-200 bg-surface shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">

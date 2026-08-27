@@ -4,6 +4,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { hash } from "bcryptjs";
 import { workingDaysInMonth } from "../src/lib/date";
 import { calculatePph21 } from "../src/lib/tax";
+import { calculateBpjs } from "../src/lib/bpjs";
 
 const adapter = new PrismaPg(process.env.DATABASE_URL as string);
 const prisma = new PrismaClient({ adapter });
@@ -39,6 +40,15 @@ type EmployeeSeed = {
   onTimeIn: string[];
   lateIn: string[];
   overtimeRate?: number;
+  email?: string;
+  nik?: string;
+  ktp?: string;
+  phone?: string;
+  birthDate?: string;
+  address?: string;
+  joinDate?: string;
+  position?: string;
+  salaryType?: string;
 };
 
 async function seedCompany(
@@ -47,6 +57,7 @@ async function seedCompany(
   const password = await hash("karyawan123", 10);
   const hrdPassword = await hash("hrd123", 10);
   const adminPassword = await hash("admin123", 10);
+  const spvPassword = await hash("spv123", 10);
 
   const c = await prisma.company.upsert({
     where: { code: company.code },
@@ -113,6 +124,12 @@ async function seedCompany(
     },
   });
 
+  const department = await prisma.department.upsert({
+    where: { companyId_name: { companyId: c.id, name: "Operasional" } },
+    update: {},
+    create: { companyId: c.id, name: "Operasional" },
+  });
+
   // ============ PENGGUNA ============
   await prisma.user.create({
     data: {
@@ -122,6 +139,13 @@ async function seedCompany(
       role: "ADMIN",
       companyId: c.id,
       baseSalary: 8500000,
+      email: `admin@${company.code}.co.id`,
+      nik: `NIK-${company.code.toUpperCase()}-ADM`,
+      ktp: "3171010101800001",
+      phone: "0811-0000-0001",
+      birthDate: new Date("1980-01-01"),
+      address: company.address,
+      joinDate: new Date("2018-01-15"),
     },
   });
   const hrd = await prisma.user.create({
@@ -135,6 +159,34 @@ async function seedCompany(
       maritalStatus: "KAWIN",
       dependents: 1,
       shiftId: shift.id,
+      email: `hrd@${company.code}.co.id`,
+      nik: `NIK-${company.code.toUpperCase()}-HRD`,
+      ktp: "3275014105850002",
+      phone: "0811-0000-0002",
+      birthDate: new Date("1985-05-01"),
+      address: company.address,
+      joinDate: new Date("2019-02-01"),
+    },
+  });
+
+  const spv = await prisma.user.create({
+    data: {
+      username: `spv_${company.code}`,
+      password: spvPassword,
+      name: `Supervisor ${company.name}`,
+      role: "SPV",
+      companyId: c.id,
+      baseSalary: 8000000,
+      maritalStatus: "KAWIN",
+      dependents: 2,
+      shiftId: shift.id,
+      email: `spv@${company.code}.co.id`,
+      nik: `NIK-${company.code.toUpperCase()}-SPV`,
+      ktp: "3578012209900003",
+      phone: "0811-0000-0003",
+      birthDate: new Date("1990-09-22"),
+      address: company.address,
+      joinDate: new Date("2020-06-01"),
     },
   });
 
@@ -147,6 +199,15 @@ async function seedCompany(
       dependents: 0,
       onTimeIn: ["07:45", "07:52", "07:58"],
       lateIn: ["08:10", "08:24", "08:35"],
+      email: `budi.santoso@${company.code}.co.id`,
+      nik: `NIK-${company.code.toUpperCase()}-001`,
+      ktp: "3171011203900001",
+      phone: "0812-3456-7801",
+      birthDate: "1990-03-12",
+      address: "Jl. Melati No. 10, Jakarta",
+      joinDate: "2020-03-01",
+      position: "Staff Operasional",
+      salaryType: "BULAN",
     },
     {
       username: `sari_${company.code}`,
@@ -156,6 +217,15 @@ async function seedCompany(
       dependents: 1,
       onTimeIn: ["07:40", "07:50", "07:55"],
       lateIn: ["08:05", "08:20", "08:40"],
+      email: `sari.dewi@${company.code}.co.id`,
+      nik: `NIK-${company.code.toUpperCase()}-002`,
+      ktp: "3275014405950002",
+      phone: "0812-3456-7802",
+      birthDate: "1995-05-04",
+      address: "Jl. Anggrek No. 22, Bandung",
+      joinDate: "2021-08-16",
+      position: "Staff Admin",
+      salaryType: "HARI",
     },
     {
       username: `dewi_${company.code}`,
@@ -165,6 +235,15 @@ async function seedCompany(
       dependents: 3,
       onTimeIn: ["07:48", "07:54", "07:57"],
       lateIn: ["08:12", "08:26", "08:38"],
+      email: `dewi.lestari@${company.code}.co.id`,
+      nik: `NIK-${company.code.toUpperCase()}-003`,
+      ktp: "3578026507930003",
+      phone: "0812-3456-7803",
+      birthDate: "1993-07-25",
+      address: "Jl. Kenanga No. 5, Surabaya",
+      joinDate: "2019-11-04",
+      position: "Supervisor Operasional",
+      salaryType: "MINGGU",
     },
   ];
 
@@ -182,6 +261,17 @@ async function seedCompany(
         dependents: spec.dependents,
         overtimeRate: spec.overtimeRate ?? 25000,
         shiftId: shift.id,
+        supervisorId: spv.id,
+        email: spec.email,
+        nik: spec.nik,
+        ktp: spec.ktp,
+        phone: spec.phone,
+        birthDate: spec.birthDate ? new Date(spec.birthDate) : undefined,
+        address: spec.address,
+        joinDate: spec.joinDate ? new Date(spec.joinDate) : undefined,
+        departmentId: department.id,
+        position: spec.position,
+        salaryType: spec.salaryType,
       },
     });
     employees.push({ user: u, spec });
@@ -423,6 +513,9 @@ async function seedCompany(
     bonus: number;
     deduction: number;
     pph21: number;
+    bpjsKesehatan: number;
+    bpjsJht: number;
+    bpjsJp: number;
     netSalary: number;
     status: string;
   }[] = [];
@@ -447,6 +540,7 @@ async function seedCompany(
       const bonus = period === periods[0] ? 250000 : 0;
       const gross = emp.baseSalary + allowance + bonus;
       const pph21 = calculatePph21(emp.maritalStatus, emp.dependents, gross);
+      const bpjs = calculateBpjs(emp.baseSalary);
       payrollData.push({
         userId: emp.id,
         period,
@@ -455,7 +549,10 @@ async function seedCompany(
         bonus,
         deduction,
         pph21,
-        netSalary: gross - pph21 - deduction,
+        bpjsKesehatan: bpjs.bpjsKesehatan,
+        bpjsJht: bpjs.bpjsJht,
+        bpjsJp: bpjs.bpjsJp,
+        netSalary: gross - pph21 - deduction - bpjs.total,
         status: period === periods[0] ? "DRAFT" : "PAID",
       });
     }
@@ -463,7 +560,7 @@ async function seedCompany(
   await prisma.payroll.createMany({ data: payrollData });
 
   console.log(
-    `  [${company.code}] ${company.name} -> admin_${company.code} / admin123, hrd_${company.code} / hrd123, karyawan_${company.code} / karyawan123`
+    `  [${company.code}] ${company.name} -> admin_${company.code} / admin123, hrd_${company.code} / hrd123, spv_${company.code} / spv123, karyawan_${company.code} / karyawan123`
   );
 }
 

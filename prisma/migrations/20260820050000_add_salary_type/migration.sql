@@ -1,0 +1,1 @@
+ALTER TABLE "tb_hris_user" ADD COLUMN "salaryType" TEXT NOT NULL DEFAULT 'BULAN';

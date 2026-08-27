@@ -2,6 +2,8 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/usePagination";
 
 type ShiftRow = {
   id: string;
@@ -21,6 +23,9 @@ export default function ShiftManager({ shifts }: { shifts: ShiftRow[] }) {
   const [tolerance, setTolerance] = useState("0");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const pag = usePagination(shifts.length);
+  const pageShifts = shifts.slice(pag.start, pag.end);
 
   async function createShift(e: FormEvent) {
     e.preventDefault();
@@ -169,7 +174,7 @@ export default function ShiftManager({ shifts }: { shifts: ShiftRow[] }) {
               </tr>
             </thead>
             <tbody>
-              {shifts.map((s) => (
+              {pageShifts.map((s) => (
                 <tr key={s.id} className="border-b border-slate-100">
                   <td className="px-6 py-3 font-medium text-slate-900">{s.name}</td>
                   <td className="px-6 py-3 text-slate-700">{s.checkIn}</td>
@@ -213,6 +218,12 @@ export default function ShiftManager({ shifts }: { shifts: ShiftRow[] }) {
             </tbody>
           </table>
         </div>
+        <Pagination
+          total={shifts.length}
+          page={pag.page}
+          pageSize={pag.pageSize}
+          onPageChange={pag.goToPage}
+        />
       </div>
     </div>
   );

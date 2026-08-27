@@ -18,11 +18,11 @@ export default async function SuperAdminLayout({
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex h-dvh flex-col overflow-hidden bg-background">
       <MobileNav {...navProps} />
-      <div className="flex flex-1">
+      <div className="flex min-h-0 flex-1">
         <Sidebar {...navProps} />
-        <main className="min-w-0 flex-1">
+        <main className="min-w-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
             {children}
           </div>

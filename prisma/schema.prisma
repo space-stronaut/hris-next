@@ -11,6 +11,7 @@ enum Role {
   SUPER_ADMIN
   ADMIN
   HRD
+  SPV
   KARYAWAN
 }
 
@@ -26,20 +27,33 @@ enum MaritalStatus {
 }
 
 model Company {
-  id          String   @id @default(cuid())
-  name        String
-  code        String   @unique
-  address     String?
-  checkInTime String   @default("08:00")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   users     User[]
   meetings  Meeting[]
   shifts    Shift[]
   rosters   Roster[]
   locations Location[]
+  departments Department[]
 
   @@map("tb_hris_company")
+}
+
+model Department {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime @default(now())
+
+  users User[]
+
+  @@unique([companyId, name])
+  @@map("tb_hris_department")
 }
 
 model Location {
@@ -103,11 +117,29 @@ model User {
   company     Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
   shiftId     String?
   shift       Shift?       @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  supervisorId String?
+  supervisor   User?       @relation("UserSupervisor", fields: [supervisorId], references: [id], onDelete: SetNull)
+  supervisedUsers User[]   @relation("UserSupervisor")
   active       Boolean       @default(true)
   baseSalary   Int           @default(0)
   overtimeRate Int           @default(0)
   maritalStatus MaritalStatus @default(LAJANG)
   dependents   Int           @default(0)
+  email        String?
+  nik          String?
+  ktp          String?
+  phone        String?
+  birthDate    DateTime?
+  address      String?
+  joinDate     DateTime?
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  position     String?
+  leaveQuota        Int           @default(12)
+  leaveUsed         Int           @default(0)
+  leaveAccrual      Int           @default(1)
+  leaveAccrualPeriod String        @default("MONTHLY")
+  salaryType        String        @default("BULAN")
   createdAt    DateTime      @default(now())
   updatedAt   DateTime     @updatedAt
   attendances Attendance[]
@@ -222,18 +254,22 @@ model Payroll {
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   period     String
+  label      String   @default("")
   baseSalary Int
   allowance  Int      @default(0)
   bonus      Int      @default(0)
   deduction  Int      @default(0)
   pph21      Int      @default(0)
+  bpjsKesehatan Int  @default(0)
+  bpjsJht     Int      @default(0)
+  bpjsJp      Int      @default(0)
   netSalary  Int
   status     String   @default("DRAFT")
   note       String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  @@unique([userId, period])
+  @@unique([userId, period, label])
   @@map("tb_hris_payroll")
 }
 

@@ -36,13 +36,6 @@ export function formatDateKey(value: string | Date): string {
   });
 }
 
-export function isLate(date: Date, checkInTime: string = "08:00"): boolean {
-  const [h, m] = checkInTime.split(":").map(Number);
-  const hours = date.getHours();
-  const minutes = date.getMinutes();
-  return hours > h || (hours === h && minutes > m);
-}
-
 export function formatDuration(
   checkIn: Date | string | null | undefined,
   checkOut: Date | string | null | undefined
@@ -67,9 +60,32 @@ export function workingDaysInMonth(period: string): number {
   return count;
 }
 
+export function workingDayKeys(period: string): string[] {
+  const [y, m] = period.split("-").map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const keys: string[] = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = new Date(y, m - 1, d);
+    const day = date.getDay();
+    if (day !== 0 && day !== 6) keys.push(toDateKey(date));
+  }
+  return keys;
+}
+
 export function daysBetween(startDate: string, endDate: string): number {
   const start = new Date(`${startDate}T00:00:00`);
   const end = new Date(`${endDate}T00:00:00`);
   const ms = Math.max(0, end.getTime() - start.getTime());
   return Math.floor(ms / 86400000) + 1;
+}
+
+export function weekdayKeys(count: number, from = new Date()): string[] {
+  const keys: string[] = [];
+  const cursor = new Date(from);
+  while (keys.length < count) {
+    cursor.setDate(cursor.getDate() - 1);
+    const day = cursor.getDay();
+    if (day !== 0 && day !== 6) keys.unshift(toDateKey(cursor));
+  }
+  return keys;
 }

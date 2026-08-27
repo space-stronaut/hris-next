@@ -23,6 +23,16 @@ export default async function AdminUsersPage() {
       dependents: true,
       shiftId: true,
       shift: { select: { name: true } },
+      supervisorId: true,
+      supervisor: { select: { name: true } },
+      departmentId: true,
+      department: { select: { name: true } },
+      position: true,
+      leaveQuota: true,
+      leaveUsed: true,
+      leaveAccrual: true,
+      leaveAccrualPeriod: true,
+      salaryType: true,
       createdAt: true,
       _count: { select: { attendances: true } },
     },
@@ -35,6 +45,18 @@ export default async function AdminUsersPage() {
     orderBy: { name: "asc" },
   });
 
+  const departments = await prisma.department.findMany({
+    where: { companyId: session.companyId },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+
+  const supervisors = await prisma.user.findMany({
+    where: { companyId: session.companyId, role: "SPV", active: true },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+
   return (
     <div className="space-y-6">
       <div>
@@ -43,7 +65,12 @@ export default async function AdminUsersPage() {
           Tambah, aktifkan/nonaktifkan, dan hapus karyawan
         </p>
       </div>
-      <UserManager users={users} shifts={shifts} />
+      <UserManager
+        users={users}
+        shifts={shifts}
+        supervisors={supervisors}
+        departments={departments}
+      />
     </div>
   );
 }

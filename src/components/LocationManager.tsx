@@ -2,6 +2,8 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/usePagination";
 
 type LocationRow = {
   id: string;
@@ -24,6 +26,9 @@ export default function LocationManager({
   const [radiusMeters, setRadiusMeters] = useState("100");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const pag = usePagination(locations.length);
+  const pageLocations = locations.slice(pag.start, pag.end);
 
   function useMyLocation(e: React.MouseEvent) {
     e.preventDefault();
@@ -202,7 +207,7 @@ export default function LocationManager({
               </tr>
             </thead>
             <tbody>
-              {locations.map((l) => (
+              {pageLocations.map((l) => (
                 <tr key={l.id} className="border-b border-slate-100">
                   <td className="px-6 py-3 font-medium text-slate-900">{l.name}</td>
                   <td className="px-6 py-3 text-slate-600">
@@ -239,6 +244,12 @@ export default function LocationManager({
             </tbody>
           </table>
         </div>
+        <Pagination
+          total={locations.length}
+          page={pag.page}
+          pageSize={pag.pageSize}
+          onPageChange={pag.goToPage}
+        />
       </div>
     </div>
   );

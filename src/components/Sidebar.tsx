@@ -11,25 +11,42 @@ type NavGroup = { title: string; items: NavItem[] };
 
 const groups: NavGroup[] = [
   {
+    title: "Akun",
+    items: [
+      { href: "/dashboard/profile", label: "Profil Saya", icon: "user", roles: ["SUPER_ADMIN", "ADMIN", "HRD", "SPV", "KARYAWAN"] },
+    ],
+  },
+  {
     title: "Utama",
     items: [
-      { href: "/dashboard", label: "Dashboard", icon: "grid", roles: ["ADMIN", "HRD", "KARYAWAN"] },
+      { href: "/dashboard", label: "Dashboard", icon: "grid", roles: ["ADMIN", "HRD", "SPV", "KARYAWAN"] },
     ],
   },
   {
     title: "Cuti & Gaji",
     items: [
-      { href: "/dashboard/leave", label: "Cuti Saya", icon: "calendar", roles: ["ADMIN", "HRD", "KARYAWAN"] },
-      { href: "/dashboard/payroll", label: "Gaji Saya", icon: "card", roles: ["ADMIN", "HRD", "KARYAWAN"] },
-      { href: "/dashboard/overtime", label: "Lembur Saya", icon: "clock", roles: ["ADMIN", "HRD", "KARYAWAN"] },
-      { href: "/dashboard/corrections", label: "Koreksi Absensi", icon: "edit", roles: ["ADMIN", "HRD", "KARYAWAN"] },
+      { href: "/dashboard/leave", label: "Cuti Saya", icon: "calendar", roles: ["ADMIN", "HRD", "SPV", "KARYAWAN"] },
+      { href: "/dashboard/payroll", label: "Gaji Saya", icon: "card", roles: ["ADMIN", "HRD", "SPV", "KARYAWAN"] },
+      { href: "/dashboard/overtime", label: "Lembur Saya", icon: "clock", roles: ["ADMIN", "HRD", "SPV", "KARYAWAN"] },
+      { href: "/dashboard/corrections", label: "Koreksi Absensi", icon: "edit", roles: ["ADMIN", "HRD", "SPV", "KARYAWAN"] },
     ],
   },
   {
     title: "Klaim & Meeting",
     items: [
-      { href: "/dashboard/claims", label: "Klaim Saya", icon: "file", roles: ["ADMIN", "HRD", "KARYAWAN"] },
-      { href: "/dashboard/meetings", label: "Meeting", icon: "users", roles: ["ADMIN", "HRD", "KARYAWAN"] },
+      { href: "/dashboard/claims", label: "Klaim Saya", icon: "file", roles: ["ADMIN", "HRD", "SPV", "KARYAWAN"] },
+      { href: "/dashboard/meetings", label: "Meeting", icon: "users", roles: ["ADMIN", "HRD", "SPV", "KARYAWAN"] },
+    ],
+  },
+  {
+    title: "Supervisor",
+    items: [
+      { href: "/spv", label: "Dashboard SPV", icon: "chart", roles: ["SPV", "ADMIN"] },
+      { href: "/spv/attendance", label: "Rekap Absensi Tim", icon: "clock", roles: ["SPV", "ADMIN"] },
+      { href: "/spv/leaves", label: "Persetujuan Cuti", icon: "check", roles: ["SPV", "ADMIN"] },
+      { href: "/spv/claims", label: "Persetujuan Klaim", icon: "check", roles: ["SPV", "ADMIN"] },
+      { href: "/spv/overtime", label: "Persetujuan Lembur", icon: "clock", roles: ["SPV", "ADMIN"] },
+      { href: "/spv/corrections", label: "Koreksi Absensi", icon: "edit", roles: ["SPV", "ADMIN"] },
     ],
   },
   {
@@ -49,6 +66,7 @@ const groups: NavGroup[] = [
     items: [
       { href: "/admin", label: "Dashboard Admin", icon: "shield", roles: ["ADMIN"] },
       { href: "/admin/users", label: "Karyawan", icon: "users", roles: ["ADMIN"] },
+      { href: "/admin/departments", label: "Departemen", icon: "briefcase", roles: ["ADMIN"] },
       { href: "/admin/shifts", label: "Shift & Jam Kerja", icon: "briefcase", roles: ["ADMIN"] },
       { href: "/admin/roster", label: "Roster", icon: "calendar", roles: ["ADMIN"] },
       { href: "/admin/locations", label: "Geofence Lokasi", icon: "map", roles: ["ADMIN"] },
@@ -64,6 +82,12 @@ const groups: NavGroup[] = [
 ];
 
 const iconPaths: Record<string, React.ReactNode> = {
+  user: (
+    <>
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </>
+  ),
   grid: (
     <>
       <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -203,6 +227,8 @@ function useDashboardState({ role }: CommonProps) {
       ? "Admin"
       : role === "HRD"
       ? "HRD"
+      : role === "SPV"
+      ? "SPV"
       : "Karyawan";
 
   function toggleTheme() {

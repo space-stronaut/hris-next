@@ -45,7 +45,7 @@ export default async function AdminAttendancePage({
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Rekap Absensi</h1>
           <p className="text-slate-500 mt-1">
-            {records.length} catatan Â· {onTime} tepat waktu Â· {late} terlambat
+            {records.length} catatan · {onTime} tepat waktu · {late} terlambat
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

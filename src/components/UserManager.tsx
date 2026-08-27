@@ -2,7 +2,10 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { formatRupiah } from "@/lib/format";
+import { formatRupiah, SALARY_TYPES, salaryTypeLabel } from "@/lib/format";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/usePagination";
+import EditUserModal from "@/components/EditUserModal";
 
 type UserRow = {
   id: string;
@@ -16,18 +19,34 @@ type UserRow = {
   dependents: number;
   shiftId: string | null;
   shift?: { name: string } | null;
+  supervisorId: string | null;
+  supervisor?: { name: string } | null;
+  departmentId: string | null;
+  department?: { name: string } | null;
+  position: string | null;
+  leaveQuota: number;
+  leaveUsed: number;
+  leaveAccrual: number;
+  leaveAccrualPeriod: string;
+  salaryType: string;
   createdAt: Date;
   _count: { attendances: number };
 };
 
 type ShiftRow = { id: string; name: string };
+type SupervisorRow = { id: string; name: string };
+type DepartmentRow = { id: string; name: string };
 
 export default function UserManager({
   users,
   shifts,
+  supervisors,
+  departments,
 }: {
   users: UserRow[];
   shifts: ShiftRow[];
+  supervisors: SupervisorRow[];
+  departments: DepartmentRow[];
 }) {
   const router = useRouter();
   const [name, setName] = useState("");
@@ -39,8 +58,19 @@ export default function UserManager({
   const [maritalStatus, setMaritalStatus] = useState("LAJANG");
   const [dependents, setDependents] = useState("0");
   const [shiftId, setShiftId] = useState(shifts[0]?.id || "");
+  const [supervisorId, setSupervisorId] = useState("");
+  const [departmentId, setDepartmentId] = useState("");
+  const [position, setPosition] = useState("");
+  const [leaveQuota, setLeaveQuota] = useState("12");
+  const [leaveAccrual, setLeaveAccrual] = useState("1");
+  const [leaveAccrualPeriod, setLeaveAccrualPeriod] = useState("MONTHLY");
+  const [salaryType, setSalaryType] = useState("BULAN");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState<UserRow | null>(null);
+
+  const pag = usePagination(users.length);
+  const pageUsers = users.slice(pag.start, pag.end);
 
   async function createUser(e: FormEvent) {
     e.preventDefault();
@@ -60,6 +90,13 @@ export default function UserManager({
           maritalStatus,
           dependents: Number(dependents) || 0,
           shiftId: shiftId || null,
+          supervisorId: role === "KARYAWAN" ? supervisorId || null : null,
+          departmentId: departmentId || null,
+          position: position || null,
+          leaveQuota: Number(leaveQuota) || 0,
+          leaveAccrual: Number(leaveAccrual) || 0,
+          leaveAccrualPeriod,
+          salaryType,
         }),
       });
       const data = await res.json();
@@ -77,6 +114,13 @@ export default function UserManager({
       setMaritalStatus("LAJANG");
       setDependents("0");
       setShiftId(shifts[0]?.id || "");
+      setSupervisorId("");
+      setDepartmentId("");
+      setPosition("");
+      setLeaveQuota("12");
+      setLeaveAccrual("1");
+      setLeaveAccrualPeriod("MONTHLY");
+      setSalaryType("BULAN");
       router.refresh();
     } catch {
       setError("Terjadi kesalahan.");
@@ -93,99 +137,6 @@ export default function UserManager({
     const data = await res.json();
     if (!res.ok) {
       alert(data.message || "Gagal mengubah status.");
-      return;
-    }
-    router.refresh();
-  }
-
-  async function setSalary(id: string) {
-    const input = window.prompt("Masukkan gaji pokok bulanan (Rupiah):");
-    if (input === null) return;
-    const value = Number(input);
-    if (isNaN(value) || value < 0) {
-      alert("Masukkan angka yang valid.");
-      return;
-    }
-    const res = await fetch(`/api/users/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ baseSalary: value }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.message || "Gagal mengubah gaji.");
-      return;
-    }
-    router.refresh();
-  }
-
-  async function setUserOvertimeRate(id: string) {
-    const input = window.prompt(
-      "Masukkan tarif lembur per jam (Rp). Kosongkan/0 untuk tanpa upah:"
-    );
-    if (input === null) return;
-    const value = Math.max(0, Math.round(Number(input) || 0));
-    const res = await fetch(`/api/users/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ overtimeRate: value }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.message || "Gagal mengubah tarif lembur.");
-      return;
-    }
-    router.refresh();
-  }
-
-  async function setPtkp(id: string) {
-    const statusInput = window.prompt(
-      "Status Kawin (ketik 'KAWIN' atau 'LAJANG'):",
-      "LAJANG"
-    );
-    if (statusInput === null) return;
-    const maritalStatus = statusInput.trim().toUpperCase() === "KAWIN" ? "KAWIN" : "LAJANG";
-    const depInput = window.prompt("Jumlah Tanggungan (0-3):", "0");
-    if (depInput === null) return;
-    const dependents = Math.min(Math.max(0, Math.round(Number(depInput) || 0)), 3);
-    const res = await fetch(`/api/users/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ maritalStatus, dependents }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.message || "Gagal mengubah data PTKP.");
-      return;
-    }
-    router.refresh();
-  }
-
-  async function setDefaultShift(id: string) {
-    if (shifts.length === 0) {
-      alert("Belum ada shift. Buat shift terlebih dahulu di menu Shift & Jam Kerja.");
-      return;
-    }
-    const names = shifts.map((s, i) => `${i + 1}. ${s.name}`).join("\n");
-    const input = window.prompt(
-      `Set default shift (kosongkan untuk menghapus shift default):\n${names}`
-    );
-    if (input === null) return;
-    const idx = Number(input) - 1;
-    const selected =
-      input.trim() === "" ? null : shifts[idx]?.id || "";
-    if (input.trim() !== "" && !selected) {
-      alert("Nomor shift tidak valid.");
-      return;
-    }
-    const res = await fetch(`/api/users/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ shiftId: selected }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.message || "Gagal mengubah shift.");
       return;
     }
     router.refresh();
@@ -258,10 +209,30 @@ export default function UserManager({
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               <option value="KARYAWAN">Karyawan</option>
+              <option value="SPV">SPV (Supervisor)</option>
               <option value="HRD">HRD</option>
               <option value="ADMIN">Admin</option>
             </select>
           </div>
+          {role === "KARYAWAN" && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Supervisor / SPV
+              </label>
+              <select
+                value={supervisorId}
+                onChange={(e) => setSupervisorId(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="">Tidak ada</option>
+                {supervisors.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Gaji Pokok (Rp)
@@ -274,6 +245,22 @@ export default function UserManager({
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               placeholder="0"
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Gaji per
+            </label>
+            <select
+              value={salaryType}
+              onChange={(e) => setSalaryType(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              {SALARY_TYPES.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -303,6 +290,74 @@ export default function UserManager({
                   {s.name}
                 </option>
               ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Departemen
+            </label>
+            <select
+              value={departmentId}
+              onChange={(e) => setDepartmentId(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="">Tidak ada</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Jabatan
+            </label>
+            <input
+              type="text"
+              value={position}
+              onChange={(e) => setPosition(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="mis. Staff"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Jatah Cuti Awal
+            </label>
+            <input
+              type="number"
+              min="0"
+              value={leaveQuota}
+              onChange={(e) => setLeaveQuota(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="12"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Penambahan Cuti
+            </label>
+            <input
+              type="number"
+              min="0"
+              value={leaveAccrual}
+              onChange={(e) => setLeaveAccrual(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="1"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Periode Penambahan
+            </label>
+            <select
+              value={leaveAccrualPeriod}
+              onChange={(e) => setLeaveAccrualPeriod(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="MONTHLY">Per Bulan</option>
+              <option value="YEARLY">Per Tahun</option>
             </select>
           </div>
 
@@ -366,6 +421,9 @@ export default function UserManager({
                 <th className="px-6 py-3">Username</th>
                 <th className="px-6 py-3">Role</th>
                 <th className="px-6 py-3">Shift</th>
+                <th className="px-6 py-3">Supervisor</th>
+                <th className="px-6 py-3">Dept / Jabatan</th>
+                <th className="px-6 py-3">Cuti</th>
                 <th className="px-6 py-3">Gaji Pokok</th>
                 <th className="px-6 py-3">Lembur/Jam</th>
                 <th className="px-6 py-3">PTKP</th>
@@ -375,7 +433,7 @@ export default function UserManager({
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
+              {pageUsers.map((u) => (
                 <tr key={u.id} className="border-b border-slate-100">
                   <td className="px-6 py-3 font-medium text-slate-900">
                     {u.name}
@@ -388,6 +446,8 @@ export default function UserManager({
                           ? "bg-purple-100 text-purple-700"
                           : u.role === "HRD"
                           ? "bg-teal-100 text-teal-700"
+                          : u.role === "SPV"
+                          ? "bg-indigo-100 text-indigo-700"
                           : "bg-slate-100 text-slate-700"
                       }`}
                     >
@@ -398,7 +458,21 @@ export default function UserManager({
                     {u.shift?.name || "-"}
                   </td>
                   <td className="px-6 py-3 text-slate-700">
-                    {u.baseSalary > 0 ? formatRupiah(u.baseSalary) : "-"}
+                    {u.supervisor?.name || "-"}
+                  </td>
+                  <td className="px-6 py-3 text-slate-700">
+                    {u.department?.name || "-"}
+                    {u.position ? ` / ${u.position}` : ""}
+                  </td>
+                  <td className="px-6 py-3 text-slate-700">
+                    {u.leaveQuota} + {u.leaveAccrual}/(
+                    {u.leaveAccrualPeriod === "YEARLY" ? "th" : "bln"})
+                  </td>
+                  <td className="px-6 py-3 text-slate-700">
+                    {u.baseSalary > 0
+                      ? formatRupiah(u.baseSalary) +
+                        ` (${salaryTypeLabel(u.salaryType)})`
+                      : "-"}
                   </td>
                   <td className="px-6 py-3 text-slate-700">
                     {u.overtimeRate > 0 ? formatRupiah(u.overtimeRate) + "/jam" : "-"}
@@ -423,28 +497,10 @@ export default function UserManager({
                   <td className="px-6 py-3">
                     <div className="flex justify-end gap-2">
                       <button
-                        onClick={() => setSalary(u.id)}
-                        className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                        onClick={() => setEditing(u)}
+                        className="rounded-md border border-blue-300 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50"
                       >
-                        Gaji
-                      </button>
-                      <button
-                        onClick={() => setUserOvertimeRate(u.id)}
-                        className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
-                      >
-                        Lembur
-                      </button>
-                      <button
-                        onClick={() => setPtkp(u.id)}
-                        className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
-                      >
-                        PTKP
-                      </button>
-                      <button
-                        onClick={() => setDefaultShift(u.id)}
-                        className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
-                      >
-                        Shift
+                        Edit
                       </button>
                       <button
                         onClick={() => toggleActive(u.id, u.active)}
@@ -465,7 +521,7 @@ export default function UserManager({
               {users.length === 0 && (
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={13}
                     className="px-6 py-8 text-center text-slate-500"
                   >
                     Belum ada karyawan.
@@ -475,7 +531,23 @@ export default function UserManager({
             </tbody>
           </table>
         </div>
+        <Pagination
+          total={users.length}
+          page={pag.page}
+          pageSize={pag.pageSize}
+          onPageChange={pag.goToPage}
+        />
       </div>
+
+      {editing && (
+        <EditUserModal
+          user={editing}
+          shifts={shifts}
+          supervisors={supervisors}
+          departments={departments}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   );
 }

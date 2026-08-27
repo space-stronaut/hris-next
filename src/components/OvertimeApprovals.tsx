@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { StatusBadge } from "@/components/StatusBadge";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/usePagination";
 
 type OvertimeRow = {
   id: string;
@@ -40,13 +43,15 @@ export default function OvertimeApprovals({
   }
 
   function renderTable(rows: OvertimeRow[]) {
+    const pageRows = rows.slice(pag.start, pag.end);
     if (rows.length === 0) {
       return (
         <div className="px-6 py-8 text-center text-slate-500">Tidak ada data.</div>
       );
     }
     return (
-      <div className="overflow-x-auto">
+      <>
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
@@ -62,7 +67,7 @@ export default function OvertimeApprovals({
             </tr>
           </thead>
           <tbody>
-            {rows.map((o) => (
+            {pageRows.map((o) => (
               <tr key={o.id} className="border-b border-slate-100">
                 <td className="px-6 py-3 font-medium text-slate-900">
                   {o.user.name}
@@ -102,11 +107,20 @@ export default function OvertimeApprovals({
           </tbody>
         </table>
       </div>
+        <Pagination
+          total={rows.length}
+          page={pag.page}
+          pageSize={pag.pageSize}
+          onPageChange={pag.goToPage}
+        />
+      </>
     );
   }
 
   const pending = overtimes.filter((o) => o.status === "PENDING");
   const processed = overtimes.filter((o) => o.status !== "PENDING");
+
+  const pag = usePagination(processed.length);
 
   return (
     <div className="space-y-6">
@@ -128,22 +142,6 @@ export default function OvertimeApprovals({
         {renderTable(processed)}
       </div>
     </div>
-  );
-}
-
-export function StatusBadge({ status }: { status: string }) {
-  return (
-    <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-        status === "APPROVED"
-          ? "bg-green-100 text-green-700"
-          : status === "REJECTED"
-          ? "bg-red-100 text-red-700"
-          : "bg-amber-100 text-amber-700"
-      }`}
-    >
-      {status}
-    </span>
   );
 }
 

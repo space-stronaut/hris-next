@@ -2,7 +2,11 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { formatRupiah, formatPeriod, currentPeriod } from "@/lib/format";
+import Link from "next/link";
+import { formatRupiah, formatPeriod, currentPeriod, SALARY_TYPES, salaryTypeLabel } from "@/lib/format";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/usePagination";
+import EditPayrollModal from "@/components/EditPayrollModal";
 
 type Employee = {
   id: string;
@@ -10,19 +14,24 @@ type Employee = {
   username: string;
   role: string;
   baseSalary: number;
+  salaryType: string;
 };
 
 type PayrollRow = {
   id: string;
   period: string;
+  label: string;
   baseSalary: number;
   allowance: number;
   bonus: number;
   deduction: number;
   pph21: number;
+  bpjsKesehatan: number;
+  bpjsJht: number;
+  bpjsJp: number;
   netSalary: number;
   status: string;
-  user: { name: string; username: string };
+  user: { name: string; username: string; salaryType: string };
 };
 
 function periodOptions(): string[] {
@@ -53,6 +62,11 @@ export default function PayrollManager({
   const [error, setError] = useState("");
   const [summary, setSummary] = useState("");
   const [loading, setLoading] = useState(false);
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchSummary, setBatchSummary] = useState("");
+  const [batchPeriod, setBatchPeriod] = useState(currentPeriod());
+  const [batchSalaryType, setBatchSalaryType] = useState("");
+  const [editingPayroll, setEditingPayroll] = useState<PayrollRow | null>(null);
 
   function onSelectEmployee(id: string) {
     setUserId(id);
@@ -85,7 +99,7 @@ export default function PayrollManager({
         return;
       }
       setSummary(
-        `Payroll ${formatPeriod(period)} dibuat: Hadir ${data.summary.hadir}, Terlambat ${data.summary.terlambat}, Alpa ${data.summary.alphaDays} hari. PPh 21 (TER) ${formatRupiah(data.summary.pph21)}. Potongan ${formatRupiah(data.payroll.deduction)}.`
+        `Payroll ${formatPeriod(period)} dibuat: Hadir ${data.summary.hadir}, Terlambat ${data.summary.terlambat}, Alpa ${data.summary.alphaDays} hari. PPh 21 (TER) ${formatRupiah(data.summary.pph21)}. BPJS ${formatRupiah(data.summary.bpjs)}. Potongan ${formatRupiah(data.payroll.deduction)}.`
       );
       setAllowance("");
       setBonus("");
@@ -111,44 +125,115 @@ export default function PayrollManager({
     router.refresh();
   }
 
-  async function editPayroll(p: PayrollRow) {
-    const baseInput = window.prompt("Gaji pokok (Rp):", String(p.baseSalary));
-    if (baseInput === null) return;
-    const allowanceInput = window.prompt("Tunjangan (Rp):", String(p.allowance));
-    if (allowanceInput === null) return;
-    const bonusInput = window.prompt("Bonus (Rp):", String(p.bonus));
-    if (bonusInput === null) return;
-    const deductionInput = window.prompt("Potongan (Rp):", String(p.deduction));
-    if (deductionInput === null) return;
-
-    const res = await fetch(`/api/payroll/${p.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        baseSalary: Number(baseInput) || 0,
-        allowance: Number(allowanceInput) || 0,
-        bonus: Number(bonusInput) || 0,
-        deduction: Number(deductionInput) || 0,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.message || "Gagal menyimpan.");
+  async function runBatchPayroll() {
+    if (
+      !window.confirm(
+        `Buat / perbarui payroll periode ${formatPeriod(batchPeriod)}${
+          batchSalaryType
+            ? ` untuk karyawan ${salaryTypeLabel(batchSalaryType)}`
+            : " untuk semua karyawan"
+        }? Karyawan memakai gaji pokok (initial salary) yang terdaftar.`
+      )
+    ) {
       return;
     }
-    router.refresh();
+    setBatchLoading(true);
+    setBatchSummary("");
+    setError("");
+    try {
+      const res = await fetch("/api/payroll/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          period: batchPeriod,
+          salaryType: batchSalaryType,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.message || "Gagal membuat batch payroll.");
+        setBatchLoading(false);
+        return;
+      }
+      setBatchSummary(
+        `Batch payroll ${formatPeriod(data.period)}${
+          data.salaryType ? ` (${salaryTypeLabel(data.salaryType)})` : " (semua tipe)"
+        } selesai untuk ${data.count} karyawan. Total gaji kotor ${formatRupiah(
+          data.totalGross
+        )}, PPh 21 ${formatRupiah(data.totalPph21)}, BPJS ${formatRupiah(
+          data.totalBpjs
+        )}, potongan ${formatRupiah(
+          data.totalDeduction
+        )}, gaji bersih ${formatRupiah(data.totalNet)}.`
+      );
+      router.refresh();
+    } catch {
+      setError("Terjadi kesalahan.");
+    } finally {
+      setBatchLoading(false);
+    }
   }
 
   const filtered = filterPeriod
     ? payrolls.filter((p) => p.period === filterPeriod)
     : payrolls;
 
+  const pag = usePagination(filtered.length);
+  const pagePayrolls = filtered.slice(pag.start, pag.end);
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-200 bg-surface p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">
-          Buat / Perbarui Payroll
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-slate-900">
+            Buat / Perbarui Payroll
+          </h2>
+          <div className="flex items-end gap-2">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Periode Batch
+              </label>
+              <input
+                type="month"
+                value={batchPeriod}
+                onChange={(e) => setBatchPeriod(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Tipe Gaji
+              </label>
+              <select
+                value={batchSalaryType}
+                onChange={(e) => setBatchSalaryType(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="">Semua</option>
+                {SALARY_TYPES.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={runBatchPayroll}
+              disabled={batchLoading || !batchPeriod}
+              className="rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:opacity-60"
+            >
+              {batchLoading
+                ? "Memproses batch..."
+                : "Batch Payroll"}
+            </button>
+          </div>
+        </div>
+        {batchSummary && (
+          <div className="mt-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+            {batchSummary}
+          </div>
+        )}
         <form onSubmit={createPayroll} className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -196,6 +281,14 @@ export default function PayrollManager({
               required
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
+            {userId && (
+              <p className="mt-1 text-xs text-slate-500">
+                Tipe gaji:{" "}
+                {salaryTypeLabel(
+                  employees.find((e) => e.id === userId)?.salaryType || "BULAN"
+                )}
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -278,10 +371,13 @@ export default function PayrollManager({
               <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
                 <th className="px-6 py-3">Periode</th>
                 <th className="px-6 py-3">Nama</th>
+                <th className="px-6 py-3">Tipe Gaji</th>
+                <th className="px-6 py-3">Periode Bagian</th>
                 <th className="px-6 py-3">Gaji Pokok</th>
                 <th className="px-6 py-3">Tunjangan</th>
                 <th className="px-6 py-3">Bonus</th>
                 <th className="px-6 py-3">PPh 21 (TER)</th>
+                <th className="px-6 py-3">BPJS</th>
                 <th className="px-6 py-3">Potongan</th>
                 <th className="px-6 py-3">Gaji Bersih</th>
                 <th className="px-6 py-3">Status</th>
@@ -292,14 +388,14 @@ export default function PayrollManager({
               {filtered.length === 0 && (
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={13}
                     className="px-6 py-8 text-center text-slate-500"
                   >
                     Belum ada data payroll.
                   </td>
                 </tr>
               )}
-              {filtered.map((p) => (
+              {pagePayrolls.map((p) => (
                 <tr key={p.id} className="border-b border-slate-100">
                   <td className="px-6 py-3 whitespace-nowrap">
                     {formatPeriod(p.period)}
@@ -310,11 +406,20 @@ export default function PayrollManager({
                       ({p.user.username})
                     </span>
                   </td>
+                  <td className="px-6 py-3 text-slate-600">
+                    {salaryTypeLabel(p.user.salaryType)}
+                  </td>
+                  <td className="px-6 py-3 text-slate-600">
+                    {p.label || "—"}
+                  </td>
                   <td className="px-6 py-3">{formatRupiah(p.baseSalary)}</td>
                   <td className="px-6 py-3">{formatRupiah(p.allowance)}</td>
                   <td className="px-6 py-3">{formatRupiah(p.bonus)}</td>
                   <td className="px-6 py-3 text-orange-600">
                     -{formatRupiah(p.pph21)}
+                  </td>
+                  <td className="px-6 py-3 text-amber-600">
+                    -{formatRupiah(p.bpjsKesehatan + p.bpjsJht + p.bpjsJp)}
                   </td>
                   <td className="px-6 py-3 text-red-600">
                     -{formatRupiah(p.deduction)}
@@ -335,8 +440,14 @@ export default function PayrollManager({
                   </td>
                   <td className="px-6 py-3">
                     <div className="flex justify-end gap-2">
+                      <Link
+                        href={`/dashboard/payroll/${p.id}`}
+                        className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                      >
+                        Slip
+                      </Link>
                       <button
-                        onClick={() => editPayroll(p)}
+                        onClick={() => setEditingPayroll(p)}
                         className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
                       >
                         Edit
@@ -356,7 +467,20 @@ export default function PayrollManager({
             </tbody>
           </table>
         </div>
+        <Pagination
+          total={filtered.length}
+          page={pag.page}
+          pageSize={pag.pageSize}
+          onPageChange={pag.goToPage}
+        />
       </div>
+
+      {editingPayroll && (
+        <EditPayrollModal
+          payroll={editingPayroll}
+          onClose={() => setEditingPayroll(null)}
+        />
+      )}
     </div>
   );
 }

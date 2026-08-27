@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { hash } from "bcryptjs";
 
+const SALARY_TYPES_VALUES = ["BULAN", "MINGGU", "HARI", "JAM", "PROYEK", "BORONGAN"];
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -40,9 +42,38 @@ export async function PATCH(
       data.name = name;
     }
     if (body.role !== undefined) {
-      data.role = ["ADMIN", "HRD", "KARYAWAN"].includes(body.role)
+      data.role = ["ADMIN", "HRD", "SPV", "KARYAWAN"].includes(body.role)
         ? body.role
         : "KARYAWAN";
+    }
+    const effectiveRole = (data.role as string) ?? existing.role;
+    if (body.supervisorId !== undefined) {
+      if (effectiveRole !== "KARYAWAN") {
+        data.supervisorId = null;
+      } else {
+        const supervisorId = body.supervisorId
+          ? String(body.supervisorId).trim()
+          : null;
+        if (supervisorId) {
+          const supervisor = await prisma.user.findFirst({
+            where: {
+              id: supervisorId,
+              companyId: session.companyId,
+              role: "SPV",
+            },
+            select: { id: true },
+          });
+          if (!supervisor) {
+            return NextResponse.json(
+              { success: false, message: "Supervisor tidak valid." },
+              { status: 400 }
+            );
+          }
+        }
+        data.supervisorId = supervisorId;
+      }
+    } else if (effectiveRole !== "KARYAWAN") {
+      data.supervisorId = null;
     }
     if (body.active !== undefined) {
       data.active = Boolean(body.active);
@@ -67,6 +98,27 @@ export async function PATCH(
     }
     if (body.shiftId !== undefined) {
       data.shiftId = body.shiftId ? String(body.shiftId).trim() : null;
+    }
+    if (body.departmentId !== undefined) {
+      data.departmentId = body.departmentId ? String(body.departmentId).trim() : null;
+    }
+    if (body.position !== undefined) {
+      data.position = body.position ? String(body.position).trim() : null;
+    }
+    if (body.leaveQuota !== undefined) {
+      data.leaveQuota = Math.max(0, Math.round(Number(body.leaveQuota) || 0));
+    }
+    if (body.leaveAccrual !== undefined) {
+      data.leaveAccrual = Math.max(0, Math.round(Number(body.leaveAccrual) || 0));
+    }
+    if (body.leaveAccrualPeriod !== undefined) {
+      data.leaveAccrualPeriod =
+        body.leaveAccrualPeriod === "YEARLY" ? "YEARLY" : "MONTHLY";
+    }
+    if (body.salaryType !== undefined) {
+      data.salaryType = SALARY_TYPES_VALUES.includes(String(body.salaryType))
+        ? String(body.salaryType)
+        : "BULAN";
     }
     if (body.password) {
       data.password = await hash(String(body.password), 10);

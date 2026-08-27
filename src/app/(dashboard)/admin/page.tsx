@@ -2,7 +2,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { toDateKey, formatTime } from "@/lib/date";
+import { toDateKey, formatTime, weekdayKeys } from "@/lib/date";
+import TrendChart from "@/components/TrendChart";
 
 export default async function AdminPage() {
   const session = await getCurrentUser();
@@ -23,6 +24,19 @@ export default async function AdminPage() {
   const present = todayRecords.filter((r) => r.checkIn).length;
   const late = todayRecords.filter((r) => r.status === "TERLAMBAT").length;
   const absent = Math.max(0, totalUsers - present);
+
+  const trendKeys = weekdayKeys(14);
+  const trendRows = await prisma.attendance.findMany({
+    where: {
+      dateKey: { gte: trendKeys[0] },
+      user: { companyId: session.companyId },
+      checkIn: { not: null },
+    },
+    select: { dateKey: true },
+  });
+  const trendMap = new Map<string, number>();
+  for (const t of trendRows) trendMap.set(t.dateKey, (trendMap.get(t.dateKey) || 0) + 1);
+  const trendData = trendKeys.map((k) => ({ dateKey: k, value: trendMap.get(k) || 0 }));
 
   const stats = [
     {
@@ -88,6 +102,8 @@ export default async function AdminPage() {
           </div>
         ))}
       </div>
+
+      <TrendChart title="Tren Kehadiran Karyawan (14 Hari Kerja)" data={trendData} />
 
       <div className="rounded-2xl border border-slate-200 bg-surface shadow-sm">
         <div className="border-b border-slate-200 px-6 py-4">

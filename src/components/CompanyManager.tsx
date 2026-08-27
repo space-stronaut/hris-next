@@ -3,6 +3,9 @@
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/usePagination";
+import EditCompanyModal from "@/components/EditCompanyModal";
 
 type CompanyRow = {
   id: string;
@@ -20,6 +23,10 @@ export default function CompanyManager({ companies }: { companies: CompanyRow[] 
   const [address, setAddress] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState<CompanyRow | null>(null);
+
+  const pag = usePagination(companies.length);
+  const pageCompanies = companies.slice(pag.start, pag.end);
 
   async function createCompany(e: FormEvent) {
     e.preventDefault();
@@ -45,27 +52,6 @@ export default function CompanyManager({ companies }: { companies: CompanyRow[] 
       setError("Terjadi kesalahan.");
       setLoading(false);
     }
-  }
-
-  async function editCompany(c: CompanyRow) {
-    const newName = window.prompt("Nama PT:", c.name);
-    if (newName === null) return;
-    const newCode = window.prompt("Kode PT:", c.code);
-    if (newCode === null) return;
-    const newAddress = window.prompt("Alamat:", c.address || "");
-    if (newAddress === null) return;
-
-    const res = await fetch(`/api/companies/${c.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName, code: newCode, address: newAddress }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.message || "Gagal menyimpan.");
-      return;
-    }
-    router.refresh();
   }
 
   async function deleteCompany(id: string) {
@@ -164,7 +150,7 @@ export default function CompanyManager({ companies }: { companies: CompanyRow[] 
               </tr>
             </thead>
             <tbody>
-              {companies.map((c) => (
+              {pageCompanies.map((c) => (
                 <tr key={c.id} className="border-b border-slate-100">
                   <td className="px-6 py-3 font-medium text-slate-900">
                     {c.name}
@@ -187,7 +173,7 @@ export default function CompanyManager({ companies }: { companies: CompanyRow[] 
                         Kelola Admin
                       </Link>
                       <button
-                        onClick={() => editCompany(c)}
+                        onClick={() => setEditing(c)}
                         className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
                       >
                         Edit
@@ -215,7 +201,20 @@ export default function CompanyManager({ companies }: { companies: CompanyRow[] 
             </tbody>
           </table>
         </div>
+        <Pagination
+          total={companies.length}
+          page={pag.page}
+          pageSize={pag.pageSize}
+          onPageChange={pag.goToPage}
+        />
       </div>
+
+      {editing && (
+        <EditCompanyModal
+          company={editing}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   );
 }

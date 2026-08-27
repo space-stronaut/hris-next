@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { calculatePph21 } from "@/lib/tax";
+import { calculateBpjs } from "@/lib/bpjs";
 
 export async function PATCH(
   request: NextRequest,
@@ -63,7 +64,11 @@ export async function PATCH(
       gross
     );
     data.pph21 = pph21;
-    data.netSalary = gross - pph21 - deduction;
+    const bpjs = calculateBpjs(baseSalary);
+    data.bpjsKesehatan = bpjs.bpjsKesehatan;
+    data.bpjsJht = bpjs.bpjsJht;
+    data.bpjsJp = bpjs.bpjsJp;
+    data.netSalary = gross - pph21 - deduction - bpjs.total;
 
     const updated = await prisma.payroll.update({
       where: { id },

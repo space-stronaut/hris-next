@@ -8,11 +8,11 @@ export async function PATCH(
 ) {
   try {
     const session = await getCurrentUser();
-    if (
-      !session ||
-      !session.companyId ||
-      (session.role !== "HRD" && session.role !== "ADMIN")
-    ) {
+    const isApprover =
+      session?.role === "HRD" ||
+      session?.role === "ADMIN" ||
+      session?.role === "SPV";
+    if (!session || !isApprover) {
       return NextResponse.json(
         { success: false, message: "Unauthorized" },
         { status: 401 }
@@ -23,8 +23,16 @@ export async function PATCH(
     const body = await request.json();
     const status = body.status === "APPROVED" ? "APPROVED" : "REJECTED";
 
+    const scopedWhere =
+      session.role === "SPV"
+        ? { user: { supervisorId: session.sub } }
+        : session.companyId
+        ? { user: { companyId: session.companyId } }
+        : {};
+
     const leave = await prisma.leave.findFirst({
-      where: { id, user: { companyId: session.companyId } },
+      where: { id, ...scopedWhere },
+      include: { user: { select: { name: true } } },
     });
     if (!leave) {
       return NextResponse.json(
@@ -39,9 +47,25 @@ export async function PATCH(
       );
     }
 
-    const updated = await prisma.leave.update({
-      where: { id },
-      data: { status, approvedById: session.sub },
+    const updated = await prisma.$transaction(async (tx) => {
+      const u = await tx.leave.update({
+        where: { id },
+        data: { status, approvedById: session.sub },
+      });
+      if (status === "APPROVED") {
+        await tx.user.update({
+          where: { id: leave.userId },
+          data: { leaveUsed: { increment: 1 } },
+        });
+      }
+      await tx.notification.create({
+        data: {
+          userId: leave.userId,
+          title: status === "APPROVED" ? "Cuti Disetujui" : "Cuti Ditolak",
+          message: `${status === "APPROVED" ? "Disetujui" : "Ditolak"} oleh ${session.name}.`,
+        },
+      });
+      return u;
     });
 
     return NextResponse.json({ success: true, leave: updated });
