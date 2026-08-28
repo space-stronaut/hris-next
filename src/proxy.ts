@@ -32,11 +32,22 @@ function applyCors(request: NextRequest, response: NextResponse) {
   return response;
 }
 
+function applySecurityHeaders(response: NextResponse): NextResponse {
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("X-XSS-Protection", "1; mode=block");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  response.headers.set(
+    "Strict-Transport-Security",
+    "max-age=31536000; includeSubDomains"
+  );
+  return response;
+}
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isApi = pathname.startsWith("/api");
 
-  // Handle CORS preflight (OPTIONS) for API requests
   if (isApi && request.method === "OPTIONS") {
     const response = new NextResponse(null, { status: 204 });
     applyCors(request, response);
@@ -49,17 +60,18 @@ export function proxy(request: NextRequest) {
   if (isProtected && !hasSession) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("from", pathname);
-    return applyCors(request, NextResponse.redirect(loginUrl));
+    return applySecurityHeaders(applyCors(request, NextResponse.redirect(loginUrl)));
   }
 
   if (pathname === "/" && hasSession) {
-    return applyCors(
+    return applySecurityHeaders(applyCors(
       request,
       NextResponse.redirect(new URL("/dashboard", request.url))
-    );
+    ));
   }
 
-  return applyCors(request, NextResponse.next());
+  const response = applyCors(request, NextResponse.next());
+  return applySecurityHeaders(response);
 }
 
 export const config = {
