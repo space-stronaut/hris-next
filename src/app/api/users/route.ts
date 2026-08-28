@@ -2,11 +2,31 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { hash } from "bcryptjs";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import {
+  validateUsername,
+  validateName,
+  validatePassword,
+  sanitizeInput,
+} from "@/lib/validation";
 
 const SALARY_TYPES_VALUES = ["BULAN", "MINGGU", "HARI", "JAM", "PROYEK", "BORONGAN"];
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
+    const rateLimitResult = rateLimit(`users:get:${ip}`, {
+      windowMs: 60 * 1000,
+      maxRequests: 30,
+    });
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { success: false, message: "Terlalu banyak request. Coba lagi nanti." },
+        { status: 429 }
+      );
+    }
+
     const session = await getCurrentUser();
     if (!session || session.role !== "ADMIN" || !session.companyId) {
       return NextResponse.json(
@@ -38,6 +58,19 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
+    const rateLimitResult = rateLimit(`users:post:${ip}`, {
+      windowMs: 60 * 1000,
+      maxRequests: 10,
+    });
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { success: false, message: "Terlalu banyak request. Coba lagi nanti." },
+        { status: 429 }
+      );
+    }
+
     const session = await getCurrentUser();
     if (!session || session.role !== "ADMIN" || !session.companyId) {
       return NextResponse.json(
@@ -47,9 +80,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const username = String(body.username || "").trim();
+    const username = sanitizeInput(String(body.username || ""));
     const password = String(body.password || "");
-    const name = String(body.name || "").trim();
+    const name = sanitizeInput(String(body.name || ""));
     const role = ["ADMIN", "HRD", "SPV", "KARYAWAN"].includes(body.role)
       ? body.role
       : "KARYAWAN";
@@ -72,7 +105,7 @@ export async function POST(request: NextRequest) {
     const departmentId = body.departmentId
       ? String(body.departmentId).trim()
       : null;
-    const position = body.position ? String(body.position).trim() : null;
+    const position = body.position ? sanitizeInput(String(body.position)) : null;
     const leaveQuota = Math.max(0, Math.round(Number(body.leaveQuota) || 12));
     const leaveAccrual = Math.max(0, Math.round(Number(body.leaveAccrual) || 1));
     const leaveAccrualPeriod = body.leaveAccrualPeriod === "YEARLY" ? "YEARLY" : "MONTHLY";
@@ -80,9 +113,26 @@ export async function POST(request: NextRequest) {
       ? String(body.salaryType)
       : "BULAN";
 
-    if (!username || !password || !name) {
+    const usernameValidation = validateUsername(username);
+    if (!usernameValidation.valid) {
       return NextResponse.json(
-        { success: false, message: "Semua field wajib diisi." },
+        { success: false, message: usernameValidation.error },
+        { status: 400 }
+      );
+    }
+
+    const nameValidation = validateName(name);
+    if (!nameValidation.valid) {
+      return NextResponse.json(
+        { success: false, message: nameValidation.error },
+        { status: 400 }
+      );
+    }
+
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      return NextResponse.json(
+        { success: false, message: passwordValidation.error },
         { status: 400 }
       );
     }

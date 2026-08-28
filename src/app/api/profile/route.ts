@@ -1,9 +1,22 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
-export async function PATCH(request: Request) {
+export async function PATCH(request: NextRequest) {
   const session = await getCurrentUser();
+
+  const ip = getClientIp(request);
+  const rateLimitResult = rateLimit(`profile:patch:${ip}`, {
+    windowMs: 60 * 1000,
+    maxRequests: 10,
+  });
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      { success: false, message: "Terlalu banyak request. Coba lagi nanti." },
+      { status: 429 }
+    );
+  }
   if (!session) {
     return NextResponse.json({ message: "Tidak terautentikasi." }, { status: 401 });
   }

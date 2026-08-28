@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { objectKey, uploadObject } from "@/lib/s3";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -8,6 +9,17 @@ export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
+    const rateLimitResult = rateLimit(`attendance-photo:post:${ip}`, {
+      windowMs: 60 * 1000,
+      maxRequests: 10,
+    });
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { success: false, message: "Terlalu banyak request. Coba lagi nanti." },
+        { status: 429 }
+      );
+    }
     const session = await getCurrentUser();
     if (!session) {
       return NextResponse.json(

@@ -4,9 +4,21 @@ import { getCurrentUser } from "@/lib/auth";
 import { workingDaysInMonth } from "@/lib/date";
 import { calculatePph21 } from "@/lib/tax";
 import { calculateBpjs } from "@/lib/bpjs";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function GET(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
+    const rateLimitResult = rateLimit(`payroll:get:${ip}`, {
+      windowMs: 60 * 1000,
+      maxRequests: 30,
+    });
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { success: false, message: "Terlalu banyak request. Coba lagi nanti." },
+        { status: 429 }
+      );
+    }
     const session = await getCurrentUser();
     if (
       !session ||
@@ -41,6 +53,17 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
+    const rateLimitResult = rateLimit(`payroll:post:${ip}`, {
+      windowMs: 60 * 1000,
+      maxRequests: 10,
+    });
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { success: false, message: "Terlalu banyak request. Coba lagi nanti." },
+        { status: 429 }
+      );
+    }
     const session = await getCurrentUser();
     if (
       !session ||

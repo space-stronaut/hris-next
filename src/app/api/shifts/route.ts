@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 function parseTime(value: string): string | null {
   if (!/^\d{1,2}:\d{2}$/.test(value)) return null;
@@ -9,8 +10,19 @@ function parseTime(value: string): string | null {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
+    const rateLimitResult = rateLimit(`shifts:get:${ip}`, {
+      windowMs: 60 * 1000,
+      maxRequests: 30,
+    });
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { success: false, message: "Terlalu banyak request. Coba lagi nanti." },
+        { status: 429 }
+      );
+    }
     const session = await getCurrentUser();
     if (!session || session.role !== "ADMIN" || !session.companyId) {
       return NextResponse.json(
@@ -34,6 +46,17 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
+    const rateLimitResult = rateLimit(`shifts:post:${ip}`, {
+      windowMs: 60 * 1000,
+      maxRequests: 10,
+    });
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { success: false, message: "Terlalu banyak request. Coba lagi nanti." },
+        { status: 429 }
+      );
+    }
     const session = await getCurrentUser();
     if (!session || session.role !== "ADMIN" || !session.companyId) {
       return NextResponse.json(

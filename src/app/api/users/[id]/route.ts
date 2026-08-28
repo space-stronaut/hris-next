@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { hash } from "bcryptjs";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { validateName, sanitizeInput } from "@/lib/validation";
 
 const SALARY_TYPES_VALUES = ["BULAN", "MINGGU", "HARI", "JAM", "PROYEK", "BORONGAN"];
 
@@ -10,6 +12,19 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const ip = getClientIp(request);
+    const rateLimitResult = rateLimit(`users:patch:${ip}`, {
+      windowMs: 60 * 1000,
+      maxRequests: 20,
+    });
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { success: false, message: "Terlalu banyak request. Coba lagi nanti." },
+        { status: 429 }
+      );
+    }
+
     const session = await getCurrentUser();
     if (!session || session.role !== "ADMIN" || !session.companyId) {
       return NextResponse.json(
@@ -32,10 +47,11 @@ export async function PATCH(
 
     const data: Record<string, unknown> = {};
     if (body.name !== undefined) {
-      const name = String(body.name || "").trim();
-      if (!name) {
+      const name = sanitizeInput(String(body.name || ""));
+      const nameValidation = validateName(name);
+      if (!nameValidation.valid) {
         return NextResponse.json(
-          { success: false, message: "Nama tidak boleh kosong." },
+          { success: false, message: nameValidation.error },
           { status: 400 }
         );
       }
@@ -103,7 +119,7 @@ export async function PATCH(
       data.departmentId = body.departmentId ? String(body.departmentId).trim() : null;
     }
     if (body.position !== undefined) {
-      data.position = body.position ? String(body.position).trim() : null;
+      data.position = body.position ? sanitizeInput(String(body.position)) : null;
     }
     if (body.leaveQuota !== undefined) {
       data.leaveQuota = Math.max(0, Math.round(Number(body.leaveQuota) || 0));
@@ -151,6 +167,19 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const ip = getClientIp(_request);
+    const rateLimitResult = rateLimit(`users:delete:${ip}`, {
+      windowMs: 60 * 1000,
+      maxRequests: 5,
+    });
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { success: false, message: "Terlalu banyak request. Coba lagi nanti." },
+        { status: 429 }
+      );
+    }
+
     const session = await getCurrentUser();
     if (!session || session.role !== "ADMIN" || !session.companyId) {
       return NextResponse.json(

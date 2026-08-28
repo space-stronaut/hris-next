@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { hash } from "bcryptjs";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 function isSuperAdmin(session: { role: string } | null) {
   return !!session && session.role === "SUPER_ADMIN";
@@ -12,6 +13,17 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const ip = getClientIp(_request);
+    const rateLimitResult = rateLimit(`companies-admins:get:${ip}`, {
+      windowMs: 60 * 1000,
+      maxRequests: 30,
+    });
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { success: false, message: "Terlalu banyak request. Coba lagi nanti." },
+        { status: 429 }
+      );
+    }
     const session = await getCurrentUser();
     if (!isSuperAdmin(session)) {
       return NextResponse.json(
@@ -55,6 +67,17 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const ip = getClientIp(request);
+    const rateLimitResult = rateLimit(`companies-admins:post:${ip}`, {
+      windowMs: 60 * 1000,
+      maxRequests: 10,
+    });
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { success: false, message: "Terlalu banyak request. Coba lagi nanti." },
+        { status: 429 }
+      );
+    }
     const session = await getCurrentUser();
     if (!isSuperAdmin(session)) {
       return NextResponse.json(

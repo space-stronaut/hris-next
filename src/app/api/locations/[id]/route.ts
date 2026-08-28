@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 async function findLocation(id: string, companyId: string) {
   return prisma.location.findFirst({ where: { id, companyId } });
@@ -11,6 +12,17 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const ip = getClientIp(request);
+    const rateLimitResult = rateLimit(`locations-patch:${ip}`, {
+      windowMs: 60 * 1000,
+      maxRequests: 20,
+    });
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { success: false, message: "Terlalu banyak request. Coba lagi nanti." },
+        { status: 429 }
+      );
+    }
     const session = await getCurrentUser();
     if (!session || session.role !== "ADMIN" || !session.companyId) {
       return NextResponse.json(
@@ -91,6 +103,17 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const ip = getClientIp(_request);
+    const rateLimitResult = rateLimit(`locations-delete:${ip}`, {
+      windowMs: 60 * 1000,
+      maxRequests: 5,
+    });
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { success: false, message: "Terlalu banyak request. Coba lagi nanti." },
+        { status: 429 }
+      );
+    }
     const session = await getCurrentUser();
     if (!session || session.role !== "ADMIN" || !session.companyId) {
       return NextResponse.json(

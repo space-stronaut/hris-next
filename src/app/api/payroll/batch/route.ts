@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { workingDaysInMonth, workingDayKeys } from "@/lib/date";
 import { calculatePph21 } from "@/lib/tax";
 import { calculateBpjs } from "@/lib/bpjs";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 const SALARY_TYPES_VALUES = ["BULAN", "MINGGU", "HARI", "JAM", "PROYEK", "BORONGAN"];
 
@@ -35,6 +36,17 @@ function toKey(d: Date): string {
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
+    const rateLimitResult = rateLimit(`payroll-batch:post:${ip}`, {
+      windowMs: 60 * 1000,
+      maxRequests: 5,
+    });
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { success: false, message: "Terlalu banyak request. Coba lagi nanti." },
+        { status: 429 }
+      );
+    }
     const session = await getCurrentUser();
     if (
       !session ||

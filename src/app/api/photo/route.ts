@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getObject } from "@/lib/s3";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -10,6 +11,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       { success: false, message: "Unauthorized" },
       { status: 401 }
+    );
+  }
+
+  const ip = getClientIp(request);
+  const rateLimitResult = rateLimit(`photo:get:${ip}`, {
+    windowMs: 60 * 1000,
+    maxRequests: 60,
+  });
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      { success: false, message: "Terlalu banyak request. Coba lagi nanti." },
+      { status: 429 }
     );
   }
 

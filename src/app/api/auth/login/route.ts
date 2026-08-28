@@ -2,9 +2,26 @@ import { NextRequest, NextResponse } from "next/server";
 import { compare } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { createSession } from "@/lib/auth";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
+    const rateLimitResult = rateLimit(`login:${ip}`, {
+      windowMs: 15 * 60 * 1000,
+      maxRequests: 5,
+    });
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Terlalu banyak percobaan login. Coba lagi dalam 15 menit.",
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const username = String(body.username || "").trim();
     const password = String(body.password || "");
